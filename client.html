@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#1a1230" />
+<title>🎲 주루마블 (실시간)</title>
+<style>
+  :root{
+    --bg1:#1a1230; --bg2:#2d1b4e; --card:#fffdf7; --ink:#2a2342;
+    --muted:#8a83a3; --line:#e7e2f0;
+    --gold:#ffd43b; --green:#51cf66; --red:#ff6b6b;
+    --talk:#845ef7; --perform:#f06595; --game:#4dabf7; --penalty:#ff922b; --chance:#51cf66;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    color:var(--ink);
+    background:radial-gradient(120% 120% at 50% 0%, var(--bg2) 0%, var(--bg1) 70%);
+    background-attachment:fixed; overflow:hidden;
+    -webkit-user-select:none; user-select:none; touch-action:manipulation;
+  }
+  .screen{position:fixed; inset:0; display:flex; flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 6px) 10px calc(env(safe-area-inset-bottom) + 6px);}
+  .hidden{display:none !important;}
+
+  h1.logo{margin:0; font-size:22px; letter-spacing:-.5px; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px;}
+  .logo .em{font-size:24px;}
+  .pill{border:none; border-radius:999px; padding:7px 13px; font-weight:800; font-size:13px; color:#fff; cursor:pointer;}
+  .mode-mild{background:linear-gradient(135deg,#51cf66,#37b24d);}
+  .mode-spicy{background:linear-gradient(135deg,#ff6b6b,#f03e3e);}
+
+  /* 홈 / 로비 카드 */
+  #home, #lobby{justify-content:flex-start; gap:14px; overflow-y:auto;}
+  .setup-head{text-align:center; color:#fff; margin:14px 0 2px;}
+  .setup-head h1{font-size:34px; margin:0; font-weight:900; letter-spacing:-1px;}
+  .setup-head p{margin:6px 0 0; color:#c9c0e6; font-size:14px;}
+  .card{background:var(--card); border-radius:20px; padding:18px; width:100%; max-width:460px; margin:0 auto; box-shadow:0 12px 40px rgba(0,0,0,.35);}
+  .section-title{font-size:13px; font-weight:800; color:var(--muted); margin:0 0 8px;}
+  .field{width:100%; border:2px solid var(--line); border-radius:12px; padding:13px 14px; font-size:16px; font-family:inherit; color:var(--ink); background:#fff;}
+  .field:focus{outline:none; border-color:var(--talk);}
+  .row{display:flex; gap:8px;}
+  .btn{border:none; border-radius:14px; padding:14px; font-size:16px; font-weight:900; color:#fff; cursor:pointer;}
+  .btn-primary{background:linear-gradient(135deg,#845ef7,#f06595); box-shadow:0 8px 24px rgba(132,94,247,.4);}
+  .btn-ghost{background:#f1eef8; color:var(--ink);}
+  .btn-gold{background:linear-gradient(135deg,#ffd43b,#fab005); color:#3a2a00; box-shadow:0 8px 22px rgba(250,176,5,.4);}
+  .btn:disabled{filter:grayscale(.5) brightness(.95); cursor:default;}
+  .btn-block{width:100%;}
+  .hr{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; margin:4px 0;}
+  .hr::before,.hr::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  .mode-switch{display:flex; gap:8px;}
+  .mode-switch button{flex:1; border:2px solid var(--line); background:#fff; border-radius:14px; padding:12px 8px; cursor:pointer; text-align:center; transition:.15s;}
+  .mode-switch button .t{font-size:16px; font-weight:900;}
+  .mode-switch button .d{font-size:11px; color:var(--muted); margin-top:3px;}
+  .mode-switch button.on.mild{border-color:var(--green); background:#ebfbee;}
+  .mode-switch button.on.spicy{border-color:var(--red); background:#fff0f0;}
+  .mode-switch button:disabled{opacity:.55;}
+
+  /* 방 코드 */
+  .roomcode{display:flex; align-items:center; justify-content:center; gap:10px; margin:2px 0 6px;}
+  .roomcode .code{font-size:40px; font-weight:900; letter-spacing:8px; color:var(--ink); background:#f3f0fb; border-radius:14px; padding:8px 18px;}
+  .roomcode .copy{border:none; background:#f1eef8; width:46px; height:46px; border-radius:12px; font-size:20px; cursor:pointer;}
+  .lobby-players{display:flex; flex-direction:column; gap:8px;}
+  .lp{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:#f7f5fc;}
+  .lp .e{font-size:24px;}
+  .lp .n{font-weight:800; flex:1;}
+  .lp .tag{font-size:11px; font-weight:800; padding:3px 8px; border-radius:999px;}
+  .lp .tag.host{background:#fff3bf; color:#92700a;}
+  .lp .tag.you{background:#e7dbff; color:#6741d9;}
+  .lp .tag.off{background:#f1f3f5; color:#adb5bd;}
+  .waiting{text-align:center; color:var(--muted); font-size:14px; font-weight:700; padding:6px;}
+  .rules{font-size:12px; color:var(--muted); line-height:1.7; margin:0;}
+  .rules b{color:var(--ink);}
+
+  /* 게임 */
+  #game{justify-content:space-between;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:8px; max-width:560px; width:100%; margin:0 auto;}
+  .topbar .right{display:flex; gap:6px; align-items:center;}
+  .icon-btn{border:none; background:rgba(255,255,255,.14); color:#fff; width:38px; height:38px; border-radius:11px; font-size:17px; cursor:pointer;}
+  .board-wrap{flex:1; display:flex; align-items:center; justify-content:center; min-height:0;}
+  .board{width:min(94vw, 60vh); height:min(94vw, 60vh); display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
+    gap:4px; padding:6px; border-radius:18px; background:linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+    box-shadow:0 14px 44px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.06);}
+  .tile{position:relative; background:var(--card); border-radius:9px; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.18); transition:transform .12s, box-shadow .12s;}
+  .tile .bar{position:absolute; top:0; left:0; right:0; height:5px;}
+  .tile .em{font-size:clamp(14px,4.4vw,22px); line-height:1; margin-top:3px;}
+  .tile .lb{font-size:clamp(8px,2.4vw,11px); font-weight:800; color:var(--ink); margin-top:2px; letter-spacing:-.3px;}
+  .tile.corner .lb{font-size:clamp(8.5px,2.6vw,12px);}
+  .tile.active{transform:scale(1.07); box-shadow:0 0 0 3px var(--gold), 0 6px 16px rgba(0,0,0,.35); z-index:5;}
+  .tokens{position:absolute; bottom:1px; left:0; right:0; display:flex; flex-wrap:wrap; justify-content:center; gap:1px; padding:0 1px;}
+  .tokens .pl{font-size:clamp(11px,3.2vw,16px); line-height:1; filter:drop-shadow(0 1px 1px rgba(0,0,0,.4));}
+
+  .center{grid-column:2 / 7; grid-row:2 / 7; background:linear-gradient(160deg, rgba(0,0,0,.28), rgba(0,0,0,.12));
+    border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; padding:8px; gap:4px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);}
+  .center .wm{font-size:clamp(12px,3.4vw,16px); font-weight:900; opacity:.85; letter-spacing:1px;}
+  .center .curtok{font-size:clamp(28px,10vw,48px); line-height:1; margin-top:2px;}
+  .center .curname{font-size:clamp(14px,4.2vw,19px); font-weight:900;}
+  .center .lap{font-size:clamp(10px,2.8vw,12px); color:#d7ccff;}
+  .center .dice{font-size:clamp(26px,9vw,42px); letter-spacing:4px; margin-top:2px; min-height:1.1em;}
+  .center .res{font-size:clamp(11px,3vw,13px); color:#ffe08a; font-weight:800; min-height:1.2em;}
+
+  .bottom{max-width:560px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:8px;}
+  .turnstrip{display:flex; gap:6px; overflow-x:auto; padding:2px; scrollbar-width:none;}
+  .turnstrip::-webkit-scrollbar{display:none;}
+  .pchip{flex:0 0 auto; display:flex; align-items:center; gap:5px; background:rgba(255,255,255,.12); color:#fff; border-radius:999px; padding:5px 11px 5px 7px; font-size:13px; font-weight:700; transition:.15s; opacity:.6;}
+  .pchip .e{font-size:16px;}
+  .pchip.cur{opacity:1; box-shadow:0 0 0 2px var(--gold);}
+  .pchip.skip{opacity:.4; text-decoration:line-through;}
+  .pchip.off{opacity:.3;}
+  .roll-btn{width:100%; border:none; border-radius:16px; padding:17px; font-size:19px; font-weight:900; cursor:pointer;
+    background:linear-gradient(135deg,#ffd43b,#fab005); color:#3a2a00; box-shadow:0 8px 22px rgba(250,176,5,.4); transition:transform .08s, filter .15s;}
+  .roll-btn:active{transform:scale(.97);}
+  .roll-btn:disabled{filter:grayscale(.55) brightness(.92); cursor:default; box-shadow:none;}
+  .roll-btn.skipmode{background:linear-gradient(135deg,#adb5bd,#868e96); color:#fff; box-shadow:none;}
+  .roll-btn.waitmode{background:rgba(255,255,255,.14); color:#fff;}
+
+  /* 모달 */
+  .overlay{position:fixed; inset:0; background:rgba(10,6,24,.72); display:flex; align-items:center; justify-content:center; padding:22px; z-index:50; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .overlay.show{opacity:1; pointer-events:auto;}
+  .modal{background:var(--card); border-radius:22px; width:100%; max-width:380px; padding:24px 22px 20px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.5);
+    transform:scale(.9) translateY(10px); transition:transform .22s cubic-bezier(.2,1.4,.4,1);}
+  .overlay.show .modal{transform:scale(1) translateY(0);}
+  .modal .badge{display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px; font-size:13px; font-weight:900; color:#fff;}
+  .modal .who{font-size:14px; color:var(--muted); font-weight:700; margin:14px 0 0;}
+  .modal .big-em{font-size:46px; margin:6px 0 4px;}
+  .modal .mtext{font-size:20px; font-weight:800; line-height:1.5; margin:6px 4px 0; color:var(--ink); word-break:keep-all;}
+  .modal .sub{font-size:13px; color:var(--muted); margin-top:10px; line-height:1.5;}
+  .modal .ok{width:100%; border:none; border-radius:14px; padding:15px; font-size:17px; font-weight:900; color:#fff; background:linear-gradient(135deg,#845ef7,#5f3dc4); cursor:pointer; margin-top:18px;}
+  .modal .wait{margin-top:16px; font-size:14px; color:var(--muted); font-weight:700;}
+
+  #toast{position:fixed; left:50%; top:12%; transform:translateX(-50%) translateY(-12px); z-index:60; background:rgba(20,12,40,.94); color:#fff;
+    padding:12px 18px; border-radius:14px; font-size:15px; font-weight:800; box-shadow:0 8px 26px rgba(0,0,0,.45); opacity:0; transition:.25s; max-width:88vw; text-align:center; border:1px solid rgba(255,255,255,.12);}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  #netbar{position:fixed; top:0; left:0; right:0; z-index:70; text-align:center; font-size:13px; font-weight:800; color:#fff; padding:7px; background:#e8590c; transform:translateY(-100%); transition:transform .2s;}
+  #netbar.show{transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ===== 홈 ===== -->
+<section id="home" class="screen">
+  <div class="setup-head"><h1>🎲 주루마블</h1><p>실시간 멀티플레이 · 각자 폰으로 접속</p></div>
+  <div class="card">
+    <p class="section-title">🙋 내 이름</p>
+    <input id="nameInput" class="field" type="text" maxlength="8" placeholder="닉네임 입력" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+  </div>
+  <div class="card">
+    <p class="section-title">🌶️ 미션 수위 (방장이 설정)</p>
+    <div class="mode-switch" id="homeMode">
+      <button data-mode="mild" class="on mild"><div class="t">😇 순한맛</div><div class="d">술 없이도 OK</div></button>
+      <button data-mode="spicy" class="spicy"><div class="t">🔥 매운맛</div><div class="d">본격 술게임</div></button>
+    </div>
+    <button id="createBtn" class="btn btn-primary btn-block" style="margin-top:12px;">방 만들기 🚀</button>
+  </div>
+  <div class="hr">또는</div>
+  <div class="card">
+    <p class="section-title">🔑 방 코드로 참가</p>
+    <div class="row">
+      <input id="codeInput" class="field" type="text" maxlength="4" placeholder="ABCD" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase; letter-spacing:6px; font-weight:800; text-align:center;" />
+      <button id="joinBtn" class="btn btn-ghost" style="flex:0 0 auto; padding-left:22px; padding-right:22px;">참가</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 로비 ===== -->
+<section id="lobby" class="screen hidden">
+  <div class="setup-head"><h1>대기실</h1><p>친구에게 방 코드를 공유하세요</p></div>
+  <div class="card">
+    <div class="roomcode"><span class="code" id="lobbyCode">----</span><button class="copy" id="copyBtn" title="복사">📋</button></div>
+    <button id="shareBtn" class="btn btn-ghost btn-block" style="font-size:14px;">🔗 초대 링크 공유</button>
+  </div>
+  <div class="card">
+    <p class="section-title">👥 참가자 <span id="pcount"></span></p>
+    <div class="lobby-players" id="lobbyPlayers"></div>
+  </div>
+  <div class="card" id="hostModeCard">
+    <p class="section-title">🌶️ 미션 수위</p>
+    <div class="mode-switch" id="lobbyMode">
+      <button data-mode="mild" class="mild"><div class="t">😇 순한맛</div></button>
+      <button data-mode="spicy" class="spicy"><div class="t">🔥 매운맛</div></button>
+    </div>
+  </div>
+  <div class="card" style="background:transparent; box-shadow:none; padding-top:0;">
+    <button id="startBtn" class="btn btn-gold btn-block">게임 시작 🎲</button>
+    <p class="waiting hidden" id="waitHost">방장이 게임을 시작하길 기다리는 중…</p>
+    <button id="leaveLobbyBtn" class="btn btn-ghost btn-block" style="margin-top:8px; font-size:14px;">나가기</button>
+  </div>
+</section>
+
+<!-- ===== 게임 ===== -->
+<section id="game" class="screen hidden">
+  <div class="topbar">
+    <h1 class="logo"><span class="em">🎲</span> <span id="gameCode">주루마블</span></h1>
+    <div class="right">
+      <button class="pill mode-mild" id="modeBadge">😇 순한맛</button>
+      <button class="icon-btn" id="restartBtn" title="처음부터">↺</button>
+      <button class="icon-btn" id="leaveBtn" title="나가기">⏏</button>
+    </div>
+  </div>
+  <div class="board-wrap"><div class="board" id="board"></div></div>
+  <div class="bottom">
+    <div class="turnstrip" id="turnstrip"></div>
+    <button class="roll-btn" id="rollBtn">주사위 굴리기 🎲</button>
+  </div>
+</section>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <span class="badge" id="mBadge">미션</span>
+    <p class="who" id="mWho"></p>
+    <div class="big-em" id="mEm">🎯</div>
+    <p class="mtext" id="mText"></p>
+    <p class="sub" id="mSub"></p>
+    <button class="ok" id="mOk">확인 ✓</button>
+    <p class="wait hidden" id="mWait">미션 수행 중…</p>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="netbar">⚠️ 서버와 재연결 중…</div>
+
+<script>
+/* ===== 보드 표현(정적) — 미션 텍스트는 서버에서 옴 ===== */
+const CAT = {
+  talk:{emoji:'💬',label:'토크',color:'#845ef7'}, perform:{emoji:'🎭',label:'장기',color:'#f06595'},
+  game:{emoji:'🎲',label:'대결',color:'#4dabf7'}, penalty:{emoji:'🔥',label:'벌칙',color:'#ff922b'},
+  chance:{emoji:'🍀',label:'찬스',color:'#51cf66'},
+};
+const TILE_KIND = ['start','penalty','talk','perform','chance','game','island','talk','penalty','perform','game','chance','rest','perform','game','talk','penalty','chance','roulette','game','perform','talk','penalty','chance'];
+const CORNERS = {start:{emoji:'🏁',label:'출발'}, island:{emoji:'🏝️',label:'무인도'}, rest:{emoji:'🛋️',label:'휴게소'}, roulette:{emoji:'🎡',label:'룰렛존'}};
+const POS = [[7,7],[7,6],[7,5],[7,4],[7,3],[7,2],[7,1],[6,1],[5,1],[4,1],[3,1],[2,1],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]];
+const DICE = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+
+const $ = s => document.querySelector(s);
+const delay = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ===== 네트워크 ===== */
+let ws=null, myId=null, myRoom=null, S=null;
+let homeMode='mild';
+let connected=false, reconnectT=null, intentionalClose=false;
+
+const LS_ROOM='jm_room', LS_PID='jm_pid';
+function persist(){ try{ localStorage.setItem(LS_ROOM,myRoom||''); localStorage.setItem(LS_PID,myId||''); }catch(e){} }
+function clearPersist(){ try{ localStorage.removeItem(LS_ROOM); localStorage.removeItem(LS_PID); }catch(e){} myRoom=myId=null; }
+
+function wsUrl(){ const p = location.protocol==='https:'?'wss':'ws'; return `${p}://${location.host}/ws`; }
+
+function connect(){
+  ws = new WebSocket(wsUrl());
+  ws.onopen = ()=>{
+    connected=true; netbar(false);
+    const r=localStorage.getItem(LS_ROOM), p=localStorage.getItem(LS_PID);
+    if(r && p){ myRoom=r; myId=p; sendRaw({type:'rejoin', room:r, playerId:p}); }
+  };
+  ws.onmessage = (e)=>{ let m; try{ m=JSON.parse(e.data); }catch{ return; } onMessage(m); };
+  ws.onclose = ()=>{
+    connected=false;
+    if(intentionalClose){ intentionalClose=false; return; }
+    if(myRoom) netbar(true);
+    clearTimeout(reconnectT); reconnectT=setTimeout(connect, 1200);
+  };
+  ws.onerror = ()=>{ try{ ws.close(); }catch(e){} };
+}
+function sendRaw(o){ if(ws && ws.readyState===1){ ws.send(JSON.stringify(o)); return true; } return false; }
+function act(o){ if(!sendRaw(o)) toast('⚠️ 연결이 끊겼어요. 재연결 중…'); }
+function netbar(show){ $('#netbar').classList.toggle('show', show); }
+
+function onMessage(m){
+  if(m.type==='joined'){ myRoom=m.room; myId=m.playerId; persist(); }
+  else if(m.type==='state'){ onState(m.state); }
+  else if(m.type==='error'){ toast('⚠️ '+m.message); }
+  else if(m.type==='expired'){ clearPersist(); S=null; show('home'); toast('방이 종료되었어요'); }
+}
+
+/* ===== 화면 전환 ===== */
+function show(name){
+  ['home','lobby','game'].forEach(s=> $('#'+s).classList.toggle('hidden', s!==name));
+}
+
+/* ===== 상태 수신 ===== */
+let boardBuilt=false;
+let renderedPos={};      // playerId -> 화면상 위치(애니메이션용)
+let lastRollSeq=0, lastEventId=0, animating=false, pending=null;
+
+function onState(state){
+  // 토스트(이벤트) — 항상 먼저 확인
+  if(state.lastEvent && state.lastEvent.id>lastEventId){ lastEventId=state.lastEvent.id; toast(state.lastEvent.text); }
+
+  if(state.phase==='lobby'){
+    S=state; show('lobby'); renderLobby(state); return;
+  }
+  // playing
+  if(animating){ pending=state; return; }   // 애니메이션 중이면 보류
+  S=state;
+  show('game');
+  if(!boardBuilt){ buildBoard(); boardBuilt=true; renderedPos={}; }
+  ensureRendered(state);
+
+  if(state.rollSeq!==lastRollSeq && state.lastRoll){
+    lastRollSeq=state.rollSeq;
+    animateRoll(state);
+  } else {
+    snapTokens(state);
+    applyControls(state);
+    applyMission(state);
+  }
+}
+
+function ensureRendered(state){
+  state.players.forEach(p=>{ if(renderedPos[p.id]===undefined) renderedPos[p.id]=p.pos; });
+}
+
+/* ===== 로비 ===== */
+function isHost(){ return S && myId===S.hostId; }
+function renderLobby(s){
+  $('#lobbyCode').textContent = s.code;
+  $('#pcount').textContent = `(${s.players.length}/6)`;
+  const list=$('#lobbyPlayers'); list.innerHTML='';
+  s.players.forEach(p=>{
+    const el=document.createElement('div'); el.className='lp';
+    let tags='';
+    if(p.id===s.hostId) tags+='<span class="tag host">방장</span>';
+    if(p.id===myId) tags+='<span class="tag you">나</span>';
+    if(!p.connected) tags+='<span class="tag off">접속끊김</span>';
+    el.innerHTML=`<span class="e">${p.emoji}</span><span class="n">${esc(p.name)}</span>${tags}`;
+    list.appendChild(el);
+  });
+  // 모드 스위치(방장만)
+  document.querySelectorAll('#lobbyMode button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.mode===s.mode);
+    b.disabled = !isHost();
+  });
+  $('#hostModeCard').style.opacity = isHost()?'1':'.75';
+  // 시작 버튼 / 대기
+  const host=isHost();
+  $('#startBtn').classList.toggle('hidden', !host);
+  $('#waitHost').classList.toggle('hidden', host);
+  $('#startBtn').disabled = s.players.length<2;
+  $('#startBtn').textContent = s.players.length<2 ? '2명 이상 모이면 시작 🎲' : '게임 시작 🎲';
+}
+
+/* ===== 보드 ===== */
+let tileEls=[];
+function buildBoard(){
+  const board=$('#board'); board.innerHTML=''; tileEls=[];
+  for(let i=0;i<24;i++){
+    const kind=TILE_KIND[i];
+    const corner = CORNERS[kind];
+    const el=document.createElement('div');
+    el.className='tile'+(corner?' corner':'');
+    const [r,c]=POS[i]; el.style.gridRow=r; el.style.gridColumn=c;
+    let emoji,label,color;
+    if(corner){ emoji=corner.emoji; label=corner.label; color='var(--gold)'; el.style.background='#fffbe9'; }
+    else { const cc=CAT[kind]; emoji=cc.emoji; label=cc.label; color=cc.color; }
+    el.innerHTML=`<div class="bar" style="background:${color}"></div><div class="em">${emoji}</div><div class="lb">${label}</div><div class="tokens"></div>`;
+    board.appendChild(el); tileEls[i]=el;
+  }
+  const center=document.createElement('div'); center.className='center';
+  center.innerHTML=`<div class="wm">🎲 주루마블</div><div class="curtok" id="cTok">🦊</div><div class="curname" id="cName">-</div><div class="lap" id="cLap"></div><div class="dice" id="cDice">⚀ ⚀</div><div class="res" id="cRes">주사위를 굴려요!</div>`;
+  board.appendChild(center);
+}
+
+function renderTokens(){
+  if(!S) return;
+  tileEls.forEach(el=>el.querySelector('.tokens').innerHTML='');
+  S.players.forEach(p=>{
+    const pos = renderedPos[p.id] ?? p.pos;
+    const box = tileEls[pos].querySelector('.tokens');
+    const span=document.createElement('span'); span.className='pl'; span.textContent=p.emoji;
+    if(!p.connected) span.style.opacity='.35';
+    box.appendChild(span);
+  });
+}
+function snapTokens(state){ state.players.forEach(p=> renderedPos[p.id]=p.pos); renderTokens(); }
+
+async function animateRoll(state){
+  animating=true;
+  applyControls(state, true);   // 굴리는 동안 버튼 잠금
+  const lr=state.lastRoll;
+  // 주사위
+  await animateDice(lr.d1, lr.d2);
+  $('#cRes').textContent = `${DICE[lr.d1-1]} ${DICE[lr.d2-1]} = ${lr.steps}${lr.double?' · 더블!':''}`;
+  // 말 이동(굴린 사람만 단계 이동, 나머지는 스냅)
+  state.players.forEach(p=>{ if(p.id!==lr.playerId) renderedPos[p.id]=p.pos; });
+  const mover=lr.playerId;
+  let cur = renderedPos[mover] ?? lr.from;
+  for(let i=0;i<lr.steps;i++){
+    cur=(cur+1)%24; renderedPos[mover]=cur; renderTokens();
+    tileEls[cur].classList.add('active'); await delay(165); tileEls[cur].classList.remove('active');
+  }
+  renderedPos[mover]=state.players.find(p=>p.id===mover).pos;
+  tileEls[renderedPos[mover]].classList.add('active'); await delay(120); tileEls[renderedPos[mover]].classList.remove('active');
+  renderTokens();
+  applyControls(state);
+  applyMission(state);
+  animating=false;
+  if(pending){ const nx=pending; pending=null; onState(nx); }
+}
+
+let diceTimer=null;
+function animateDice(d1,d2){
+  return new Promise(res=>{
+    const el=$('#cDice'); let n=0;
+    clearInterval(diceTimer);
+    diceTimer=setInterval(()=>{
+      el.textContent=`${DICE[(Math.random()*6)|0]} ${DICE[(Math.random()*6)|0]}`;
+      if(++n>=9){ clearInterval(diceTimer); el.textContent=`${DICE[d1-1]} ${DICE[d2-1]}`; res(); }
+    },75);
+  });
+}
+
+/* ===== 컨트롤/턴 표시 ===== */
+function curPlayer(state){ return state.players[state.currentIdx % state.players.length]; }
+function applyControls(state, lock){
+  // 모드 배지
+  const b=$('#modeBadge');
+  if(state.mode==='mild'){ b.className='pill mode-mild'; b.textContent='😇 순한맛'; }
+  else { b.className='pill mode-spicy'; b.textContent='🔥 매운맛'; }
+  $('#gameCode').textContent = '방 '+state.code;
+  $('#restartBtn').style.display = (myId===state.hostId)?'':'none';
+  // 턴 스트립
+  const strip=$('#turnstrip'); strip.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const chip=document.createElement('div');
+    chip.className='pchip'+(i===state.currentIdx?' cur':'')+(p.skip?' skip':'')+(!p.connected?' off':'');
+    chip.innerHTML=`<span class="e">${p.emoji}</span>${esc(p.name)}${p.id===myId?' (나)':''}`;
+    strip.appendChild(chip);
+  });
+  // 중앙
+  const cp=curPlayer(state);
+  $('#cTok').textContent=cp.emoji; $('#cName').textContent=cp.name;
+  $('#cLap').textContent = cp.laps>0 ? `🔄 ${cp.laps}바퀴 완주` : '출발선에서 시작';
+  // 굴리기 버튼
+  const btn=$('#rollBtn');
+  const myTurn = cp.id===myId;
+  const missionOpen = !!state.mission;
+  btn.classList.remove('skipmode','waitmode');
+  if(lock || missionOpen){
+    btn.disabled=true; btn.textContent = missionOpen?'미션 진행 중…':'굴리는 중…';
+  } else if(!myTurn){
+    btn.disabled=true; btn.classList.add('waitmode'); btn.textContent=`⏳ ${cp.name}님 차례`;
+  } else if(cp.skip){
+    btn.disabled=false; btn.classList.add('skipmode'); btn.textContent='🏝️ 무인도 — 탭해서 넘기기';
+  } else {
+    btn.disabled=false; btn.textContent='주사위 굴리기 🎲';
+  }
+}
+
+function applyMission(state){
+  const m=state.mission;
+  if(!m){ $('#overlay').classList.remove('show'); return; }
+  $('#mBadge').style.background=m.color; $('#mBadge').textContent=m.badge;
+  const actor = state.players.find(p=>p.id===m.forPlayerId);
+  $('#mWho').textContent = actor ? `${actor.emoji} ${actor.name} 차례` : '';
+  $('#mEm').textContent=m.emoji; $('#mText').textContent=m.text;
+  $('#mSub').textContent=m.sub||''; $('#mSub').style.display=m.sub?'block':'none';
+  const mine = m.forPlayerId===myId;
+  $('#mOk').classList.toggle('hidden', !mine);
+  $('#mWait').classList.toggle('hidden', mine);
+  if(!mine){ const who=actor?actor.name:'상대'; $('#mWait').textContent=`⏳ ${who}님이 미션 수행 중…`; }
+  $('#overlay').classList.add('show');
+}
+
+function esc(s){ return (s+'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ===== 입력 핸들러 ===== */
+document.querySelectorAll('#homeMode button').forEach(b=> b.onclick=()=>{ homeMode=b.dataset.mode; document.querySelectorAll('#homeMode button').forEach(x=>x.classList.toggle('on', x===b)); });
+$('#createBtn').onclick=()=>{ const n=$('#nameInput').value.trim(); act({type:'create', name:n, mode:homeMode}); };
+$('#joinBtn').onclick=()=>{ const code=$('#codeInput').value.trim().toUpperCase(); const n=$('#nameInput').value.trim(); if(code.length<4){ toast('방 코드 4자리를 입력하세요'); return; } act({type:'join', room:code, name:n}); };
+$('#codeInput').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase(); });
+
+document.querySelectorAll('#lobbyMode button').forEach(b=> b.onclick=()=>{ if(isHost()) act({type:'setMode', mode:b.dataset.mode}); });
+$('#startBtn').onclick=()=> act({type:'start'});
+$('#copyBtn').onclick=()=> copyText(S?S.code:'');
+$('#shareBtn').onclick=()=> shareInvite();
+$('#leaveLobbyBtn').onclick=()=> leave();
+
+$('#rollBtn').onclick=()=> act({type:'roll'});
+$('#mOk').onclick=()=> act({type:'confirm'});
+$('#modeBadge').onclick=()=>{ if(isHost()) act({type:'setMode', mode:(S.mode==='mild'?'spicy':'mild')}); else toast('수위 변경은 방장만 할 수 있어요'); };
+$('#restartBtn').onclick=()=>{ if(isHost() && confirm('말과 차례를 처음부터 다시 시작할까요?')) act({type:'restart'}); };
+$('#leaveBtn').onclick=()=>{ if(confirm('게임에서 나갈까요?')) leave(); };
+
+function leave(){ act({type:'leave'}); clearPersist(); S=null; boardBuilt=false; lastRollSeq=0; lastEventId=0; show('home'); }
+
+function copyText(t){ if(!t) return; if(navigator.clipboard){ navigator.clipboard.writeText(t).then(()=>toast('📋 방 코드 복사됨: '+t)); } else toast('방 코드: '+t); }
+function shareInvite(){
+  if(!S) return;
+  const url = `${location.origin}/?room=${S.code}`;
+  if(navigator.share){ navigator.share({title:'주루마블', text:`방 코드 ${S.code}로 들어와!`, url}).catch(()=>{}); }
+  else copyText(url);
+}
+
+let toastTimer;
+function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2300); }
+
+/* ===== 시작 ===== */
+(function init(){
+  // URL ?room=CODE 자동 채우기
+  const m = location.search.match(/[?&]room=([A-Za-z0-9]{4})/);
+  if(m) $('#codeInput').value = m[1].toUpperCase();
+  show('home');
+  connect();
+})();
+</script>
+</body>
+</html>

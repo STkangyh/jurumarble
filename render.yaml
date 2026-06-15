@@ -1,0 +1,10 @@
+# Render.com 블루프린트 — 이 레포를 연결하고 "New > Blueprint"로 배포하세요.
+services:
+  - type: web
+    name: jurumarble
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true

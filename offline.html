@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#1a1230" />
+<title>🎲 주루마블</title>
+<style>
+  :root{
+    --bg1:#1a1230; --bg2:#2d1b4e; --card:#fffdf7; --ink:#2a2342;
+    --muted:#8a83a3; --line:#e7e2f0;
+    --gold:#ffd43b; --green:#51cf66; --red:#ff6b6b;
+    --talk:#845ef7; --perform:#f06595; --game:#4dabf7; --penalty:#ff922b; --chance:#51cf66;
+    --safe:10px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    color:var(--ink);
+    background:radial-gradient(120% 120% at 50% 0%, var(--bg2) 0%, var(--bg1) 70%);
+    background-attachment:fixed;
+    overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+    touch-action:manipulation;
+  }
+  .screen{
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 6px) 10px calc(env(safe-area-inset-bottom) + 6px);
+  }
+  .hidden{display:none !important;}
+
+  /* ---------- 공통 ---------- */
+  h1.logo{
+    margin:0; font-size:22px; letter-spacing:-.5px; font-weight:900; color:#fff;
+    display:flex; align-items:center; gap:6px;
+  }
+  .logo .em{font-size:24px;}
+  .pill{
+    border:none; border-radius:999px; padding:7px 13px; font-weight:800; font-size:13px;
+    color:#fff; cursor:pointer;
+  }
+  .mode-mild{background:linear-gradient(135deg,#51cf66,#37b24d);}
+  .mode-spicy{background:linear-gradient(135deg,#ff6b6b,#f03e3e);}
+
+  /* ---------- 셋업 화면 ---------- */
+  #setup{justify-content:flex-start; gap:14px; overflow-y:auto;}
+  .setup-card{
+    background:var(--card); border-radius:20px; padding:18px; width:100%;
+    max-width:460px; margin:0 auto; box-shadow:0 12px 40px rgba(0,0,0,.35);
+  }
+  .setup-head{text-align:center; color:#fff; margin:10px 0 2px;}
+  .setup-head h1{font-size:34px; margin:0; font-weight:900; letter-spacing:-1px;}
+  .setup-head p{margin:6px 0 0; color:#c9c0e6; font-size:14px;}
+  .section-title{font-size:13px; font-weight:800; color:var(--muted); margin:0 0 8px;}
+  .mode-switch{display:flex; gap:8px;}
+  .mode-switch button{
+    flex:1; border:2px solid var(--line); background:#fff; border-radius:14px;
+    padding:12px 8px; cursor:pointer; text-align:center; transition:.15s;
+  }
+  .mode-switch button .t{font-size:16px; font-weight:900;}
+  .mode-switch button .d{font-size:11px; color:var(--muted); margin-top:3px;}
+  .mode-switch button.on.mild{border-color:var(--green); background:#ebfbee;}
+  .mode-switch button.on.spicy{border-color:var(--red); background:#fff0f0;}
+
+  .players{display:flex; flex-direction:column; gap:8px;}
+  .prow{display:flex; align-items:center; gap:8px;}
+  .prow .tok{font-size:24px; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:12px; flex:0 0 auto;}
+  .prow input{
+    flex:1; min-width:0; border:2px solid var(--line); border-radius:12px; padding:11px 12px;
+    font-size:16px; font-family:inherit; color:var(--ink); background:#fff;
+  }
+  .prow input:focus{outline:none; border-color:var(--talk);}
+  .prow .del{border:none; background:#f1eef8; color:#a99; width:38px; height:38px; border-radius:10px; font-size:18px; cursor:pointer; flex:0 0 auto;}
+  .add-btn{
+    width:100%; border:2px dashed var(--line); background:#fff; color:var(--muted);
+    border-radius:12px; padding:11px; font-size:14px; font-weight:700; cursor:pointer; margin-top:8px;
+  }
+  .start-btn{
+    width:100%; border:none; border-radius:16px; padding:16px; font-size:18px; font-weight:900; color:#fff;
+    background:linear-gradient(135deg,#845ef7,#f06595); cursor:pointer; margin-top:4px;
+    box-shadow:0 8px 24px rgba(132,94,247,.45);
+  }
+  .rules{font-size:12px; color:var(--muted); line-height:1.7; margin:0; padding-left:2px;}
+  .rules b{color:var(--ink);}
+
+  /* ---------- 게임 화면 ---------- */
+  #game{justify-content:space-between;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:8px; max-width:560px; width:100%; margin:0 auto;}
+  .topbar .right{display:flex; gap:6px; align-items:center;}
+  .icon-btn{border:none; background:rgba(255,255,255,.14); color:#fff; width:38px; height:38px; border-radius:11px; font-size:17px; cursor:pointer;}
+
+  .board-wrap{flex:1; display:flex; align-items:center; justify-content:center; min-height:0;}
+  .board{
+    width:min(94vw, 62vh); height:min(94vw, 62vh);
+    display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
+    gap:4px; padding:6px; border-radius:18px;
+    background:linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+    box-shadow:0 14px 44px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .tile{
+    position:relative; background:var(--card); border-radius:9px; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.18); transition:transform .12s, box-shadow .12s;
+  }
+  .tile .bar{position:absolute; top:0; left:0; right:0; height:5px;}
+  .tile .em{font-size:clamp(14px,4.4vw,22px); line-height:1; margin-top:3px;}
+  .tile .lb{font-size:clamp(8px,2.4vw,11px); font-weight:800; color:var(--ink); margin-top:2px; letter-spacing:-.3px;}
+  .tile.corner{}
+  .tile.corner .lb{font-size:clamp(8.5px,2.6vw,12px);}
+  .tile.active{transform:scale(1.07); box-shadow:0 0 0 3px var(--gold), 0 6px 16px rgba(0,0,0,.35); z-index:5;}
+  .tokens{position:absolute; bottom:1px; left:0; right:0; display:flex; flex-wrap:wrap; justify-content:center; gap:1px; padding:0 1px;}
+  .tokens .pl{font-size:clamp(11px,3.2vw,16px); line-height:1; filter:drop-shadow(0 1px 1px rgba(0,0,0,.4));}
+
+  /* 보드 중앙 패널 */
+  .center{
+    grid-column:2 / 7; grid-row:2 / 7;
+    background:linear-gradient(160deg, rgba(0,0,0,.28), rgba(0,0,0,.12));
+    border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff; text-align:center; padding:8px; gap:4px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);
+  }
+  .center .wm{font-size:clamp(13px,3.6vw,17px); font-weight:900; opacity:.85; letter-spacing:1px;}
+  .center .curtok{font-size:clamp(30px,11vw,52px); line-height:1; margin-top:2px;}
+  .center .curname{font-size:clamp(14px,4.2vw,19px); font-weight:900;}
+  .center .lap{font-size:clamp(10px,2.8vw,12px); color:#d7ccff;}
+  .center .dice{font-size:clamp(26px,9vw,42px); letter-spacing:4px; margin-top:2px; min-height:1.1em;}
+  .center .res{font-size:clamp(11px,3vw,13px); color:#ffe08a; font-weight:800; min-height:1.2em;}
+
+  /* 하단 컨트롤 */
+  .bottom{max-width:560px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:8px;}
+  .turnstrip{display:flex; gap:6px; overflow-x:auto; padding:2px; scrollbar-width:none;}
+  .turnstrip::-webkit-scrollbar{display:none;}
+  .pchip{
+    flex:0 0 auto; display:flex; align-items:center; gap:5px; background:rgba(255,255,255,.12);
+    color:#fff; border-radius:999px; padding:5px 11px 5px 7px; font-size:13px; font-weight:700; transition:.15s; opacity:.6;
+  }
+  .pchip .e{font-size:16px;}
+  .pchip.cur{opacity:1; box-shadow:0 0 0 2px var(--gold);}
+  .pchip.skip{opacity:.4; text-decoration:line-through;}
+  .roll-btn{
+    width:100%; border:none; border-radius:16px; padding:17px; font-size:19px; font-weight:900; color:#fff;
+    background:linear-gradient(135deg,#ffd43b,#fab005); color:#3a2a00; cursor:pointer;
+    box-shadow:0 8px 22px rgba(250,176,5,.4); transition:transform .08s, filter .15s;
+  }
+  .roll-btn:active{transform:scale(.97);}
+  .roll-btn:disabled{filter:grayscale(.5) brightness(.92); cursor:default;}
+  .roll-btn.skipmode{background:linear-gradient(135deg,#adb5bd,#868e96); color:#fff; box-shadow:none;}
+
+  /* ---------- 모달 ---------- */
+  .overlay{position:fixed; inset:0; background:rgba(10,6,24,.72); display:flex; align-items:center; justify-content:center; padding:22px; z-index:50; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .overlay.show{opacity:1; pointer-events:auto;}
+  .modal{
+    background:var(--card); border-radius:22px; width:100%; max-width:380px; padding:24px 22px 20px; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,.5); transform:scale(.9) translateY(10px); transition:transform .22s cubic-bezier(.2,1.4,.4,1);
+  }
+  .overlay.show .modal{transform:scale(1) translateY(0);}
+  .modal .badge{display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px; font-size:13px; font-weight:900; color:#fff;}
+  .modal .who{font-size:14px; color:var(--muted); font-weight:700; margin:14px 0 0;}
+  .modal .big-em{font-size:46px; margin:6px 0 4px;}
+  .modal .mtext{font-size:20px; font-weight:800; line-height:1.5; margin:6px 4px 0; color:var(--ink); word-break:keep-all;}
+  .modal .sub{font-size:13px; color:var(--muted); margin-top:10px; line-height:1.5;}
+  .modal .ok{width:100%; border:none; border-radius:14px; padding:15px; font-size:17px; font-weight:900; color:#fff; background:linear-gradient(135deg,#845ef7,#5f3dc4); cursor:pointer; margin-top:18px;}
+
+  /* ---------- 토스트 ---------- */
+  #toast{position:fixed; left:50%; top:14%; transform:translateX(-50%) translateY(-12px); z-index:60;
+    background:rgba(20,12,40,.94); color:#fff; padding:12px 18px; border-radius:14px; font-size:15px; font-weight:800;
+    box-shadow:0 8px 26px rgba(0,0,0,.45); opacity:0; transition:.25s; max-width:88vw; text-align:center; border:1px solid rgba(255,255,255,.12);}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ============ 셋업 ============ -->
+<section id="setup" class="screen">
+  <div class="setup-head">
+    <h1>🎲 주루마블</h1>
+    <p>주사위 굴리고 · 칸 밟고 · 미션 수행!</p>
+  </div>
+
+  <div class="setup-card">
+    <p class="section-title">🌶️ 미션 수위</p>
+    <div class="mode-switch" id="modeSwitch">
+      <button data-mode="mild" class="on mild">
+        <div class="t">😇 순한맛</div>
+        <div class="d">술 없이도 OK · 가벼운 미션</div>
+      </button>
+      <button data-mode="spicy" class="spicy">
+        <div class="t">🔥 매운맛</div>
+        <div class="d">본격 술게임 · 과감한 벌칙</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="setup-card">
+    <p class="section-title">👥 플레이어 (2~6명)</p>
+    <div class="players" id="playerList"></div>
+    <button class="add-btn" id="addBtn">＋ 플레이어 추가</button>
+  </div>
+
+  <div class="setup-card">
+    <p class="section-title">📖 규칙 한눈에</p>
+    <p class="rules">
+      • <b>주사위 굴리기</b>를 눌러 두 개의 주사위만큼 이동해요.<br>
+      • 멈춘 칸의 <b>미션</b>을 수행! 카테고리는 토크·장기·대결·벌칙·찬스.<br>
+      • <b>🏝️ 무인도</b>: 한 턴 쉬기 · <b>🛋️ 휴게소</b>: 안전지대 · <b>🎡 룰렛존</b>: 찬스카드.<br>
+      • <b>더블</b>(같은 숫자)이 나오면 한 번 더! · 출발선을 지나면 보너스.<br>
+      • 게임 중에도 상단 배지로 <b>수위 전환</b> 가능해요.
+    </p>
+  </div>
+
+  <div class="setup-card" style="background:transparent; box-shadow:none; padding-top:0;">
+    <button class="start-btn" id="startBtn">게임 시작 🚀</button>
+  </div>
+</section>
+
+<!-- ============ 게임 ============ -->
+<section id="game" class="screen hidden">
+  <div class="topbar">
+    <h1 class="logo"><span class="em">🎲</span> 주루마블</h1>
+    <div class="right">
+      <button class="pill mode-mild" id="modeBadge">😇 순한맛</button>
+      <button class="icon-btn" id="restartBtn" title="처음부터">↺</button>
+      <button class="icon-btn" id="setupBtn" title="설정">⚙</button>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="bottom">
+    <div class="turnstrip" id="turnstrip"></div>
+    <button class="roll-btn" id="rollBtn">주사위 굴리기 🎲</button>
+  </div>
+</section>
+
+<!-- 모달 & 토스트 -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <span class="badge" id="mBadge">미션</span>
+    <p class="who" id="mWho"></p>
+    <div class="big-em" id="mEm">🎯</div>
+    <p class="mtext" id="mText"></p>
+    <p class="sub" id="mSub"></p>
+    <button class="ok" id="mOk">확인 ✓</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* =================== 데이터 =================== */
+const CAT = {
+  talk:    {emoji:'💬', label:'토크', color:'#845ef7'},
+  perform: {emoji:'🎭', label:'장기', color:'#f06595'},
+  game:    {emoji:'🎲', label:'대결', color:'#4dabf7'},
+  penalty: {emoji:'🔥', label:'벌칙', color:'#ff922b'},
+  chance:  {emoji:'🍀', label:'찬스', color:'#51cf66'},
+};
+
+// 24칸 (시계 반대 방향, 출발=인덱스0)
+const TILES = [
+  {type:'corner', key:'start',   emoji:'🏁', label:'출발'},
+  {type:'penalty', mild:'가위바위보 한 판! 옆 사람에게 지면 꿀밤 1대 받기.', spicy:'원샷! 잔 비우기. 잔이 비어 있으면 옆 사람이 채워준 한 잔.'},
+  {type:'talk',    mild:'오늘 가장 고마웠던 사람에게 한마디 하기.', spicy:'진실게임 1문제 답하기. 못 하면 한 잔.'},
+  {type:'perform', mild:'좋아하는 노래 한 소절 부르기.', spicy:'노래 한 소절! 음 이탈하면 벌주 한 잔.'},
+  {type:'chance'},
+  {type:'game',    mild:'끝말잇기! 5초 안에 한 단어 잇기.', spicy:'전원 가위바위보, 최종 패자 한 잔.'},
+  {type:'corner', key:'island',  emoji:'🏝️', label:'무인도'},
+  {type:'talk',    mild:'지금 가장 가고 싶은 여행지 말하기.', spicy:'가장 가고 싶은 여행지 + 함께 갈 사람 지목, 못 정하면 한 잔.'},
+  {type:'penalty', mild:'다음 차례까지 사투리로만 말하기. 실수하면 꿀밤 1대.', spicy:'폭탄주 직접 제조해서 본인이 원샷.'},
+  {type:'perform', mild:'성대모사 하나 선보이기 (연예인·동물 등).', spicy:'성대모사 도전, 어색하면 한 잔.'},
+  {type:'game',    mild:"초성 게임 'ㅅㄱ'! 3초 안에 단어 말하기.", spicy:'병뚜껑 튕기기 도전, 실패하면 한 모금.'},
+  {type:'chance'},
+  {type:'corner', key:'rest',    emoji:'🛋️', label:'휴게소'},
+  {type:'perform', mild:'몸으로 단어 설명하고 옆 사람이 맞히기.', spicy:'제스처 게임! 못 맞히면 출제자·정답자 같이 한 모금.'},
+  {type:'game',    mild:'눈치게임! 1부터 순서 없이 외치기.', spicy:'눈치게임, 마지막까지 못 외친 사람 한 잔.'},
+  {type:'talk',    mild:'왼쪽 사람 칭찬 3가지 말하기.', spicy:'이 중 술 제일 약한 사람 지목 → 그 사람과 짠 후 한 모금.'},
+  {type:'penalty', mild:'10초 안 웃기 챌린지! 다들 웃겨도 버티면 통과.', spicy:'시계 방향으로 전원 한 모금씩.'},
+  {type:'chance'},
+  {type:'corner', key:'roulette',emoji:'🎡', label:'룰렛존'},
+  {type:'game',    mild:'3·6·9 게임 한 바퀴 돌기.', spicy:'3·6·9 게임! 틀린 사람 벌주 한 잔.'},
+  {type:'perform', mild:'엉덩이로 내 이름 쓰기 ✍️', spicy:'옆 사람과 장기자랑 대결, 진 쪽이 한 잔.'},
+  {type:'talk',    mild:'로또 1등 당첨되면 가장 먼저 할 일 말하기.', spicy:'로또 1등 당첨되면? 5초 안에 답 못 하면 한 잔.'},
+  {type:'penalty', mild:'다음 내 차례까지 말끝마다 "~다람쥐" 붙이기! 실수하면 꿀밤 1대.', spicy:'마실 사람 1명 지목해서 같이 한 잔 (흑기사 가능).'},
+  {type:'chance'},
+];
+
+// 보드 좌표 (1~7), 인덱스 순서대로
+const POS = [
+  [7,7],[7,6],[7,5],[7,4],[7,3],[7,2],[7,1],
+  [6,1],[5,1],[4,1],[3,1],[2,1],
+  [1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],
+  [2,7],[3,7],[4,7],[5,7],[6,7],
+];
+
+// 찬스 카드 덱
+const CHANCE = [
+  {mild:'럭키! 다음 차례 한 번 쉬어도 OK (패스권 1회 획득).', spicy:'행운의 흑기사권 1회 획득! 마실 차례를 남에게 넘길 수 있어요.'},
+  {mild:'전원 하이파이브 한 바퀴! 👋', spicy:'다 같이 건배 후 한 모금 🍻'},
+  {mild:'왼쪽 사람과 자리 바꾸기.', spicy:'왼쪽 사람과 잔 바꿔서 한 잔.'},
+  {mild:'주사위 한 번 더 굴리기! 🎲', spicy:'주사위 한 번 더! 단, 더블 나오면 한 잔.', again:true},
+  {mild:'지목한 사람과 묵찌빠, 진 사람 꿀밤 1대.', spicy:'지목한 사람과 묵찌빠, 진 사람 한 잔.'},
+  {mild:'옆 사람과 3초 눈싸움! 먼저 웃으면 꿀밤 1대.', spicy:'옆 사람과 눈싸움, 먼저 웃은 사람 한 잔.'},
+  {mild:'30초 침묵! 먼저 말하면 꿀밤 1대.', spicy:'30초 침묵! 먼저 말한 사람 벌주.'},
+  {mild:'전원 기립, 가장 늦게 일어난 사람 애교 한 번.', spicy:'전원 기립! 제일 늦게 일어난 사람 한 잔.'},
+  {mild:'다 같이 셀카 한 장 찍기! 📸', spicy:'다 같이 짠하고 한 모금 🍻 인증샷은 덤 📸'},
+  {mild:'옆 사람과 동시에 점프 5번! 박자 틀리면 꿀밤.', spicy:'옆 사람과 동시에 한 모금, 박자 틀리면 한 잔 더.'},
+];
+
+const CORNER_TEXT = {
+  start:    {mild:'출발 칸 정착 🏁 패스권 1회 획득! (미션 한 번 면제)', spicy:'출발 칸 정착 🏁 패스권 1회! (마실 차례 1번 면제)', sub:'한 바퀴 돌아 정확히 도착했네요!'},
+  island:   {mild:'무인도 표류 🏝️ 다음 차례는 쉬어요.', spicy:'무인도 표류 🏝️ 한 잔 마시고 다음 차례 쉬기.', sub:'다음 내 차례에 "탭"으로 넘기면 됩니다.'},
+  rest:     {mild:'휴게소 도착 😌 안주 타임! 이번엔 미션 없이 편히 쉬어요.', spicy:'휴게소 😌 안주 챙기는 시간! 벌주·미션 없음.', sub:'안전지대 — 편하게 쉬어가세요.'},
+  roulette: {mild:'룰렛 당첨 🎡 찬스 카드 1장 뽑기!', spicy:'룰렛 당첨 🎡 찬스 카드 1장 뽑기!', sub:''},
+};
+const PASS_START = {mild:'한 바퀴 완주 🎉 다 같이 박수 한 번 👏', spicy:'한 바퀴 완주 🍻 다 같이 짠, 한 모금!'};
+
+const EMOJIS = ['🦊','🐰','🐻','🐼','🐯','🐸','🐵','🐶'];
+const COLORS = ['#ff6b6b','#4dabf7','#51cf66','#ffd43b','#cc5de8','#ff922b'];
+const DICE = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+
+/* =================== 상태 =================== */
+const state = {
+  mode:'mild',
+  setupPlayers:[{name:''},{name:''}],
+  players:[],
+  current:0,
+  rolling:false,
+  extraRoll:false,
+  extraRollMsg:'',
+  passedStart:false,
+  started:false,
+};
+
+const $ = s => document.querySelector(s);
+const rand = (a,b)=> Math.floor(Math.random()*(b-a+1))+a;
+const delay = ms => new Promise(r=>setTimeout(r,ms));
+
+/* =================== 셋업 화면 =================== */
+function renderModeSwitch(){
+  document.querySelectorAll('#modeSwitch button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.mode===state.mode);
+  });
+}
+document.querySelectorAll('#modeSwitch button').forEach(b=>{
+  b.onclick = ()=>{ state.mode = b.dataset.mode; renderModeSwitch(); };
+});
+
+function renderPlayerInputs(){
+  const list = $('#playerList'); list.innerHTML='';
+  state.setupPlayers.forEach((p,i)=>{
+    const row = document.createElement('div'); row.className='prow';
+    const tok = document.createElement('div'); tok.className='tok';
+    tok.style.background = COLORS[i]+'33'; tok.textContent = EMOJIS[i];
+    const inp = document.createElement('input');
+    inp.type='text'; inp.maxLength=8; inp.placeholder=`플레이어 ${i+1}`; inp.value=p.name;
+    inp.autocomplete='off'; inp.autocapitalize='off'; inp.spellcheck=false;
+    inp.setAttribute('name', 'jm-player-'+i+'-'+Math.random().toString(36).slice(2,7));
+    inp.setAttribute('autocorrect','off'); inp.setAttribute('inputmode','text');
+    inp.oninput = e => state.setupPlayers[i].name = e.target.value;
+    row.appendChild(tok); row.appendChild(inp);
+    if(state.setupPlayers.length>2){
+      const del = document.createElement('button'); del.className='del'; del.textContent='×';
+      del.onclick = ()=>{ state.setupPlayers.splice(i,1); renderPlayerInputs(); };
+      row.appendChild(del);
+    }
+    list.appendChild(row);
+  });
+  $('#addBtn').style.display = state.setupPlayers.length>=6 ? 'none':'block';
+}
+$('#addBtn').onclick = ()=>{
+  if(state.setupPlayers.length<6){ state.setupPlayers.push({name:''}); renderPlayerInputs(); }
+};
+$('#startBtn').onclick = startGame;
+
+/* =================== 게임 시작 =================== */
+function startGame(){
+  state.players = state.setupPlayers.map((p,i)=>({
+    name: (p.name||'').trim() || `플레이어 ${i+1}`,
+    emoji: EMOJIS[i], color: COLORS[i],
+    pos:0, laps:0, skip:false,
+  }));
+  state.current = 0;
+  state.started = true;
+  state.rolling = false;
+  buildBoard();
+  renderTurnStrip();
+  updateModeBadge();
+  updateCenter();
+  $('#setup').classList.add('hidden');
+  $('#game').classList.remove('hidden');
+  toast('🎲 게임 시작! ' + state.players[0].name + '님부터');
+}
+
+/* =================== 보드 빌드 =================== */
+let tileEls = [];
+function buildBoard(){
+  const board = $('#board'); board.innerHTML=''; tileEls = [];
+  TILES.forEach((t,i)=>{
+    const el = document.createElement('div');
+    el.className = 'tile' + (t.type==='corner' ? ' corner':'');
+    const [r,c] = POS[i];
+    el.style.gridRow = r; el.style.gridColumn = c;
+    let emoji, label, color;
+    if(t.type==='corner'){ emoji=t.emoji; label=t.label; color='var(--gold)'; }
+    else { const cc=CAT[t.type]; emoji=cc.emoji; label=cc.label; color=cc.color; }
+    el.innerHTML =
+      `<div class="bar" style="background:${color}"></div>`+
+      `<div class="em">${emoji}</div>`+
+      `<div class="lb">${label}</div>`+
+      `<div class="tokens"></div>`;
+    if(t.type==='corner') el.style.background='#fffbe9';
+    board.appendChild(el);
+    tileEls[i] = el;
+  });
+  // 중앙 패널
+  const center = document.createElement('div');
+  center.className='center';
+  center.innerHTML =
+    `<div class="wm">🎲 주루마블</div>`+
+    `<div class="curtok" id="cTok">🦊</div>`+
+    `<div class="curname" id="cName">-</div>`+
+    `<div class="lap" id="cLap"></div>`+
+    `<div class="dice" id="cDice">⚀ ⚀</div>`+
+    `<div class="res" id="cRes">주사위를 굴려요!</div>`;
+  board.appendChild(center);
+  renderTokens();
+}
+
+function renderTokens(){
+  tileEls.forEach(el => el.querySelector('.tokens').innerHTML='');
+  state.players.forEach(p=>{
+    const box = tileEls[p.pos].querySelector('.tokens');
+    const span = document.createElement('span'); span.className='pl';
+    span.textContent = p.emoji; box.appendChild(span);
+  });
+}
+
+/* =================== 턴 표시 =================== */
+function cur(){ return state.players[state.current]; }
+
+function renderTurnStrip(){
+  const strip = $('#turnstrip'); strip.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const chip = document.createElement('div');
+    chip.className = 'pchip' + (i===state.current?' cur':'') + (p.skip?' skip':'');
+    chip.innerHTML = `<span class="e">${p.emoji}</span>${p.name}`;
+    strip.appendChild(chip);
+  });
+}
+
+function updateCenter(){
+  const p = cur();
+  $('#cTok').textContent = p.emoji;
+  $('#cName').textContent = p.name;
+  $('#cLap').textContent = p.laps>0 ? `🔄 ${p.laps}바퀴 완주` : '출발선에서 시작';
+  const btn = $('#rollBtn');
+  if(p.skip){
+    btn.classList.add('skipmode');
+    btn.textContent = '🏝️ 무인도 — 탭해서 넘기기';
+  } else {
+    btn.classList.remove('skipmode');
+    btn.textContent = '주사위 굴리기 🎲';
+  }
+}
+
+function updateModeBadge(){
+  const b = $('#modeBadge');
+  if(state.mode==='mild'){ b.className='pill mode-mild'; b.textContent='😇 순한맛'; }
+  else { b.className='pill mode-spicy'; b.textContent='🔥 매운맛'; }
+}
+
+/* =================== 굴리기 / 이동 =================== */
+$('#rollBtn').onclick = onRoll;
+
+function onRoll(){
+  if(state.rolling || !state.started) return;
+  const p = cur();
+  if(p.skip){
+    p.skip = false;
+    toast(`🏝️ ${p.name}님 무인도에서 한 턴 쉼!`);
+    nextTurn();
+    return;
+  }
+  state.rolling = true;
+  $('#rollBtn').disabled = true;
+  const d1 = rand(1,6), d2 = rand(1,6);
+  const dbl = (d1===d2);
+  if(dbl){ state.extraRoll = true; state.extraRollMsg = '🎲 더블! 한 번 더 굴려요!'; }
+  else { state.extraRoll = false; }
+  animateDiceTo(d1, d2, async ()=>{
+    $('#cRes').textContent = `${DICE[d1-1]} ${DICE[d2-1]} = ${d1+d2}${dbl?' · 더블!':''}`;
+    await movePlayer(p, d1+d2);
+    resolveLanding(p);
+  });
+}
+
+function animateDiceTo(d1, d2, cb){
+  const el = $('#cDice');
+  let n=0; const total=9;
+  const iv = setInterval(()=>{
+    el.textContent = `${DICE[rand(0,5)]} ${DICE[rand(0,5)]}`;
+    n++;
+    if(n>=total){
+      clearInterval(iv);
+      el.textContent = `${DICE[d1-1]} ${DICE[d2-1]}`;
+      cb();
+    }
+  }, 75);
+}
+
+async function movePlayer(p, steps){
+  state.passedStart = false;
+  for(let i=0;i<steps;i++){
+    p.pos = (p.pos+1)%24;
+    if(p.pos===0){ p.laps++; if(i<steps-1) state.passedStart = true; }
+    renderTokens();
+    highlightTile(p.pos, true);
+    await delay(170);
+    highlightTile(p.pos, false);
+  }
+  highlightTile(p.pos, true);
+  await delay(120);
+  highlightTile(p.pos, false);
+}
+
+function highlightTile(i, on){
+  if(i<0) return;
+  tileEls[i].classList.toggle('active', on);
+}
+
+/* =================== 칸 도착 처리 =================== */
+function drawChance(){
+  const card = CHANCE[rand(0,CHANCE.length-1)];
+  if(card.again){ state.extraRoll = true; state.extraRollMsg = '🍀 행운! 주사위 한 번 더 굴려요!'; }
+  return card;
+}
+
+function resolveLanding(p){
+  if(state.passedStart) toast(PASS_START[state.mode]);
+
+  const idx = p.pos;
+  const t = TILES[idx];
+
+  if(idx===0){ // 출발 정착
+    const c = CORNER_TEXT.start;
+    return showModal({color:'var(--gold)', badge:'🏁 출발', em:'🏁', text:c[state.mode], sub:c.sub});
+  }
+
+  if(t.type==='corner'){
+    const c = CORNER_TEXT[t.key];
+    if(t.key==='island'){
+      p.skip = true; state.extraRoll = false; renderTurnStrip();
+      return showModal({color:'var(--gold)', badge:'🏝️ 무인도', em:'🏝️', text:c[state.mode], sub:c.sub});
+    }
+    if(t.key==='rest'){
+      return showModal({color:'var(--gold)', badge:'🛋️ 휴게소', em:'🛋️', text:c[state.mode], sub:c.sub});
+    }
+    if(t.key==='roulette'){
+      const card = drawChance();
+      return showModal({color:CAT.chance.color, badge:'🎡 룰렛존 → 🍀 찬스', em:'🍀', text:card[state.mode], sub:'룰렛이 뽑은 찬스 카드!'});
+    }
+  }
+
+  if(t.type==='chance'){
+    const card = drawChance();
+    return showModal({color:CAT.chance.color, badge:'🍀 찬스 카드', em:'🍀', text:card[state.mode], sub:''});
+  }
+
+  // 일반 미션
+  const cc = CAT[t.type];
+  showModal({color:cc.color, badge:`${cc.emoji} ${cc.label}`, em:cc.emoji, text:t[state.mode], sub:''});
+}
+
+/* =================== 모달 =================== */
+function showModal({color, badge, em, text, sub}){
+  $('#mBadge').style.background = color;
+  $('#mBadge').textContent = badge;
+  $('#mWho').textContent = `${cur().emoji} ${cur().name} 차례`;
+  $('#mEm').textContent = em;
+  $('#mText').textContent = text;
+  $('#mSub').textContent = sub || '';
+  $('#mSub').style.display = sub ? 'block':'none';
+  $('#overlay').classList.add('show');
+}
+
+$('#mOk').onclick = finishTurn;
+
+function finishTurn(){
+  $('#overlay').classList.remove('show');
+  state.rolling = false;
+  if(state.extraRoll){
+    state.extraRoll = false;
+    $('#rollBtn').disabled = false;
+    updateCenter();
+    toast(state.extraRollMsg || '🎲 한 번 더 굴려요!');
+  } else {
+    nextTurn();
+    $('#rollBtn').disabled = false;
+  }
+}
+
+function nextTurn(){
+  state.current = (state.current+1) % state.players.length;
+  renderTurnStrip();
+  updateCenter();
+}
+
+/* =================== 토스트 =================== */
+let toastTimer;
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> el.classList.remove('show'), 2200);
+}
+
+/* =================== 상단 버튼 =================== */
+$('#modeBadge').onclick = ()=>{
+  state.mode = state.mode==='mild' ? 'spicy':'mild';
+  updateModeBadge();
+  toast(state.mode==='mild' ? '😇 순한맛으로 전환' : '🔥 매운맛으로 전환');
+};
+$('#restartBtn').onclick = ()=>{
+  if(!confirm('말과 차례를 처음부터 다시 시작할까요?')) return;
+  state.players.forEach(p=>{ p.pos=0; p.laps=0; p.skip=false; });
+  state.current=0; state.rolling=false; state.extraRoll=false;
+  $('#overlay').classList.remove('show');
+  $('#rollBtn').disabled=false;
+  renderTokens(); renderTurnStrip(); updateCenter();
+  $('#cDice').textContent='⚀ ⚀'; $('#cRes').textContent='주사위를 굴려요!';
+  toast('↺ 처음부터 다시!');
+};
+$('#setupBtn').onclick = ()=>{
+  if(!confirm('설정 화면으로 돌아갈까요? (현재 게임 종료)')) return;
+  state.started=false;
+  $('#overlay').classList.remove('show');
+  $('#game').classList.add('hidden');
+  $('#setup').classList.remove('hidden');
+  renderModeSwitch();
+};
+
+/* =================== 초기화 =================== */
+renderModeSwitch();
+renderPlayerInputs();
+</script>
+</body>
+</html>
