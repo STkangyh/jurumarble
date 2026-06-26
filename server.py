@@ -1,13 +1,15 @@
 """
-주루마블 실시간 멀티플레이 서버 (FastAPI + WebSocket).
+주루마블 실시간 서버 (FastAPI + WebSocket) — 관리자 진행 + 관람객 모델.
 
-서버가 게임 로직의 단일 진실원(authoritative)입니다.
-클라이언트는 같은 오리진으로 ws/wss 에 연결하여 액션을 보내고,
-서버가 검증·처리한 뒤 방 전체에 상태를 브로드캐스트합니다.
-
-실행:
-    uvicorn server:app --host 0.0.0.0 --port 8000
-    (이 파일이 있는 디렉터리에서)
+게임 규칙(이번 버전):
+- 관리자(방 생성자) 1명이 팀을 구성하고 모든 팀의 주사위를 대신 굴린다.
+- 관람객은 보기 전용 + 이모티콘.
+- 주사위는 1개, 눈은 1·2·3만. 한 바퀴(출발칸 복귀)를 먼저 완주한 팀이 우승.
+- 완주를 어렵게 하는 장치들:
+  · 🕳️ 함정칸: 뒤로 N칸 밀림
+  · 🌀 소용돌이칸: 출발점으로 원위치
+  · 🏝️ 무인도: 다음 차례 쉬기
+  · 🎯 정확히 골인: 출발칸에 딱 맞게 도착해야 우승(넘으면 튕겨나감)
 """
 from __future__ import annotations
 
@@ -22,11 +24,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-
 app = FastAPI(title="주루마블 실시간 서버")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 게임 콘텐츠 (서버 권위 — 미션 텍스트의 단일 진실원)
+# 게임 콘텐츠
 # ──────────────────────────────────────────────────────────────────────────
 GOLD = "#ffd43b"
 CAT = {
@@ -36,90 +37,151 @@ CAT = {
     "penalty": {"emoji": "🔥", "label": "벌칙", "color": "#ff922b"},
     "chance":  {"emoji": "🍀", "label": "찬스", "color": "#51cf66"},
 }
+TRAP_COLOR = "#e8590c"
+RESET_COLOR = "#7048e8"
 
+# 24칸. trap=뒤로 N칸, reset=출발 복귀.
 TILES = [
     {"type": "corner", "key": "start", "emoji": "🏁", "label": "출발"},
-    {"type": "penalty", "mild": "가위바위보 한 판! 옆 사람에게 지면 꿀밤 1대 받기.", "spicy": "원샷! 잔 비우기. 잔이 비어 있으면 옆 사람이 채워준 한 잔."},
-    {"type": "talk",    "mild": "오늘 가장 고마웠던 사람에게 한마디 하기.", "spicy": "진실게임 1문제 답하기. 못 하면 한 잔."},
-    {"type": "perform", "mild": "좋아하는 노래 한 소절 부르기.", "spicy": "노래 한 소절! 음 이탈하면 벌주 한 잔."},
+    {"type": "penalty", "text": "원샷! 잔 비우기. 잔이 비어 있으면 옆 사람이 채워준 한 잔."},
+    {"type": "talk",    "text": "이미지 게임! '여기서 가장 ○○할 것 같은 사람'에 다 같이 손가락 지목, 최다 득표자 한 잔."},
+    {"type": "trap", "back": 2},
     {"type": "chance"},
-    {"type": "game",    "mild": "끝말잇기! 5초 안에 한 단어 잇기.", "spicy": "전원 가위바위보, 최종 패자 한 잔."},
+    {"type": "game",    "text": "전원 가위바위보, 최종 패자 한 잔."},
     {"type": "corner", "key": "island", "emoji": "🏝️", "label": "무인도"},
-    {"type": "talk",    "mild": "지금 가장 가고 싶은 여행지 말하기.", "spicy": "가장 가고 싶은 여행지 + 함께 갈 사람 지목, 못 정하면 한 잔."},
-    {"type": "penalty", "mild": "다음 차례까지 사투리로만 말하기. 실수하면 꿀밤 1대.", "spicy": "폭탄주 직접 제조해서 본인이 원샷."},
-    {"type": "perform", "mild": "성대모사 하나 선보이기 (연예인·동물 등).", "spicy": "성대모사 도전, 어색하면 한 잔."},
-    {"type": "game",    "mild": "초성 게임 'ㅅㄱ'! 3초 안에 단어 말하기.", "spicy": "병뚜껑 튕기기 도전, 실패하면 한 모금."},
+    {"type": "talk",    "text": "가장 가고 싶은 여행지 + 함께 갈 사람 지목, 못 정하면 한 잔."},
+    {"type": "penalty", "text": "폭탄주 직접 제조해서 본인이 원샷."},
+    {"type": "trap", "back": 3},
+    {"type": "game",    "text": "병뚜껑 튕기기 도전, 실패하면 한 모금."},
     {"type": "chance"},
     {"type": "corner", "key": "rest", "emoji": "🛋️", "label": "휴게소"},
-    {"type": "perform", "mild": "몸으로 단어 설명하고 옆 사람이 맞히기.", "spicy": "제스처 게임! 못 맞히면 출제자·정답자 같이 한 모금."},
-    {"type": "game",    "mild": "눈치게임! 1부터 순서 없이 외치기.", "spicy": "눈치게임, 마지막까지 못 외친 사람 한 잔."},
-    {"type": "talk",    "mild": "왼쪽 사람 칭찬 3가지 말하기.", "spicy": "이 중 술 제일 약한 사람 지목 → 그 사람과 짠 후 한 모금."},
-    {"type": "penalty", "mild": "10초 안 웃기 챌린지! 다들 웃겨도 버티면 통과.", "spicy": "시계 방향으로 전원 한 모금씩."},
+    {"type": "perform", "text": "제스처 게임! 못 맞히면 출제자·정답자 같이 한 모금."},
+    {"type": "game",    "text": "눈치게임, 마지막까지 못 외친 사람 한 잔."},
+    {"type": "reset"},
+    {"type": "penalty", "text": "시계 방향으로 전원 한 모금씩."},
     {"type": "chance"},
     {"type": "corner", "key": "roulette", "emoji": "🎡", "label": "룰렛존"},
-    {"type": "game",    "mild": "3·6·9 게임 한 바퀴 돌기.", "spicy": "3·6·9 게임! 틀린 사람 벌주 한 잔."},
-    {"type": "perform", "mild": "엉덩이로 내 이름 쓰기 ✍️", "spicy": "옆 사람과 장기자랑 대결, 진 쪽이 한 잔."},
-    {"type": "talk",    "mild": "로또 1등 당첨되면 가장 먼저 할 일 말하기.", "spicy": "로또 1등 당첨되면? 5초 안에 답 못 하면 한 잔."},
-    {"type": "penalty", "mild": "다음 내 차례까지 말끝마다 \"~다람쥐\" 붙이기! 실수하면 꿀밤 1대.", "spicy": "마실 사람 1명 지목해서 같이 한 잔 (흑기사 가능)."},
+    {"type": "game",    "text": "3·6·9 게임! 틀린 사람 벌주 한 잔."},
+    {"type": "perform", "text": "옆 팀과 장기자랑 대결, 진 쪽이 한 잔."},
+    {"type": "talk",    "text": "로또 1등 당첨되면? 5초 안에 답 못 하면 한 잔."},
+    {"type": "trap", "back": 2},
     {"type": "chance"},
 ]
 
 CHANCE = [
-    {"mild": "럭키! 다음 차례 한 번 쉬어도 OK (패스권 1회 획득).", "spicy": "행운의 흑기사권 1회 획득! 마실 차례를 남에게 넘길 수 있어요."},
-    {"mild": "전원 하이파이브 한 바퀴! 👋", "spicy": "다 같이 건배 후 한 모금 🍻"},
-    {"mild": "왼쪽 사람과 자리 바꾸기.", "spicy": "왼쪽 사람과 잔 바꿔서 한 잔."},
-    {"mild": "주사위 한 번 더 굴리기! 🎲", "spicy": "주사위 한 번 더! 단, 더블 나오면 한 잔.", "again": True},
-    {"mild": "지목한 사람과 묵찌빠, 진 사람 꿀밤 1대.", "spicy": "지목한 사람과 묵찌빠, 진 사람 한 잔."},
-    {"mild": "옆 사람과 3초 눈싸움! 먼저 웃으면 꿀밤 1대.", "spicy": "옆 사람과 눈싸움, 먼저 웃은 사람 한 잔."},
-    {"mild": "30초 침묵! 먼저 말하면 꿀밤 1대.", "spicy": "30초 침묵! 먼저 말한 사람 벌주."},
-    {"mild": "전원 기립, 가장 늦게 일어난 사람 애교 한 번.", "spicy": "전원 기립! 제일 늦게 일어난 사람 한 잔."},
-    {"mild": "다 같이 셀카 한 장 찍기! 📸", "spicy": "다 같이 짠하고 한 모금 🍻 인증샷은 덤 📸"},
-    {"mild": "옆 사람과 동시에 점프 5번! 박자 틀리면 꿀밤.", "spicy": "옆 사람과 동시에 한 모금, 박자 틀리면 한 잔 더."},
+    {"text": "행운의 흑기사권 1회 획득! 마실 차례를 남에게 넘길 수 있어요."},
+    {"text": "다 같이 건배 후 한 모금 🍻"},
+    {"text": "왼쪽 팀과 잔 바꿔서 한 잔."},
+    {"text": "주사위 한 번 더! 🎲", "again": True},
+    {"text": "지목한 팀과 묵찌빠, 진 팀 한 잔."},
+    {"text": "옆 팀과 눈싸움, 먼저 웃은 팀 한 잔."},
+    {"text": "30초 침묵! 먼저 말한 사람 벌주."},
+    {"text": "전원 기립! 제일 늦게 일어난 사람 한 잔."},
+    {"text": "다 같이 짠하고 한 모금 🍻 인증샷은 덤 📸"},
+    {"text": "옆 팀과 동시에 한 모금, 박자 틀리면 한 잔 더."},
 ]
 
 CORNER_TEXT = {
-    "start":    {"mild": "출발 칸 정착 🏁 패스권 1회 획득! (미션 한 번 면제)", "spicy": "출발 칸 정착 🏁 패스권 1회! (마실 차례 1번 면제)", "sub": "한 바퀴 돌아 정확히 도착했네요!"},
-    "island":   {"mild": "무인도 표류 🏝️ 다음 차례는 쉬어요.", "spicy": "무인도 표류 🏝️ 한 잔 마시고 다음 차례 쉬기.", "sub": "다음 내 차례에 \"탭\"으로 넘기면 됩니다."},
-    "rest":     {"mild": "휴게소 도착 😌 안주 타임! 이번엔 미션 없이 편히 쉬어요.", "spicy": "휴게소 😌 안주 챙기는 시간! 벌주·미션 없음.", "sub": "안전지대 — 편하게 쉬어가세요."},
-    "roulette": {"mild": "룰렛 당첨 🎡 찬스 카드 1장 뽑기!", "spicy": "룰렛 당첨 🎡 찬스 카드 1장 뽑기!", "sub": ""},
+    "island":   {"text": "무인도 표류 🏝️ 한 잔 마시고 다음 차례 쉬기.", "sub": "이 팀은 다음 차례에 자동으로 한 번 쉽니다."},
+    "rest":     {"text": "휴게소 😌 안주 챙기는 시간! 벌주·미션 없음.", "sub": "안전지대 — 편하게 쉬어가세요."},
+    "roulette": {"text": "룰렛 당첨 🎡 찬스 카드 1장 뽑기!", "sub": ""},
 }
-PASS_START = {"mild": "한 바퀴 완주 🎉 다 같이 박수 한 번 👏", "spicy": "한 바퀴 완주 🍻 다 같이 짠, 한 모금!"}
 
-EMOJIS = ["🦊", "🐰", "🐻", "🐼", "🐯", "🐸", "🐵", "🐶"]
-COLORS = ["#ff6b6b", "#4dabf7", "#51cf66", "#ffd43b", "#cc5de8", "#ff922b"]
-MAX_PLAYERS = 6
-ROOM_TTL = 60 * 60  # 비활성 방 정리(초)
+TEAM_EMOJIS = ["🦊", "🐰", "🐻", "🐼", "🐯", "🐸", "🐵", "🐶"]
+TEAM_COLORS = ["#ff6b6b", "#4dabf7", "#51cf66", "#ffd43b", "#cc5de8", "#ff922b"]
+REACTIONS = ["😂", "❤️", "🔥", "👏", "🎉", "😮", "👍", "🍻", "💯", "😭"]
+MAX_TEAMS = 6
+MAX_SPECTATORS = 80          # 방당 관람 인원 상한(이모티콘 팬아웃 폭주 방지)
+EMOJI_THROTTLE = 0.2         # 참가자별 최소 간격(초)
+ROOM_EMOJI_MIN = 0.04        # 방 전체 이모티콘 최소 간격(초) ≈ 25/s
+ROOM_TTL = 60 * 60
+TILE_COUNT = 24
 
 # ──────────────────────────────────────────────────────────────────────────
 # 상태 저장소
 # ──────────────────────────────────────────────────────────────────────────
-rooms: Dict[str, dict] = {}          # code -> room dict (직렬화 대상)
-conns: Dict[str, Dict[str, WebSocket]] = {}  # code -> {playerId: websocket}
-LOCK = asyncio.Lock()                # 전역 락(저트래픽 파티게임 — 단순/안전 우선)
+rooms: Dict[str, dict] = {}
+conns: Dict[str, Dict[str, WebSocket]] = {}
+LOCK = asyncio.Lock()
 
 
 def gen_code() -> str:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 헷갈리는 0/O/1/I 제외
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     while True:
         code = "".join(random.choice(alphabet) for _ in range(4))
         if code not in rooms:
             return code
 
 
-def gen_pid() -> str:
+def gen_id() -> str:
     return "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
 
 
-def free_slot(room: dict) -> int:
-    used = {p["slot"] for p in room["players"]}
-    for i in range(MAX_PLAYERS):
+# ── 방/참가자/팀 ──────────────────────────────────────────────────────────
+def new_room(code: str) -> dict:
+    return {
+        "code": code, "phase": "lobby", "adminId": None, "currentIdx": 0,
+        "teams": [], "participants": [], "winnerId": None,
+        "die": None, "mission": None, "rollSeq": 0, "lastRoll": None,
+        "extraRoll": False, "extraRollMsg": "",
+        "eventSeq": 0, "lastEvent": None, "lastActive": time.time(),
+    }
+
+
+def add_participant(room: dict, name: str, role: str) -> dict:
+    p = {"id": gen_id(), "name": (name or "").strip()[:10] or ("관리자" if role == "admin" else "관람객"),
+         "role": role, "connected": True, "emojiTs": 0.0}
+    room["participants"].append(p)
+    return p
+
+
+def find_participant(room: dict, pid: str):
+    return next((p for p in room["participants"] if p["id"] == pid), None)
+
+
+def spectator_count(room: dict) -> int:
+    return sum(1 for p in room["participants"] if p["role"] == "spectator" and p["connected"])
+
+
+def admin_name(room: dict) -> str:
+    a = find_participant(room, room["adminId"]) if room["adminId"] else None
+    return a["name"] if a else "관리자"
+
+
+def free_team_slot(room: dict) -> int:
+    used = {t["slot"] for t in room["teams"]}
+    for i in range(MAX_TEAMS):
         if i not in used:
             return i
-    return len(room["players"]) % MAX_PLAYERS
+    return len(room["teams"]) % MAX_TEAMS
 
 
-def mk_mission(badge, emoji, text, sub, color, for_pid):
-    return {"badge": badge, "emoji": emoji, "text": text, "sub": sub, "color": color, "forPlayerId": for_pid}
+def add_team(room: dict, name: str) -> dict:
+    slot = free_team_slot(room)
+    t = {"id": gen_id(), "name": (name or "").strip()[:8] or f"{slot + 1}팀",
+         "emoji": TEAM_EMOJIS[slot % len(TEAM_EMOJIS)], "color": TEAM_COLORS[slot % len(TEAM_COLORS)],
+         "slot": slot, "pos": 0, "skip": False}
+    room["teams"].append(t)
+    return t
+
+
+def cur_team(room: dict):
+    return room["teams"][room["currentIdx"] % len(room["teams"])] if room["teams"] else None
+
+
+def advance_turn(room: dict):
+    n = len(room["teams"])
+    if n:
+        room["currentIdx"] = (room["currentIdx"] + 1) % n
+
+
+def find_team(room: dict, tid: str):
+    return next((t for t in room["teams"] if t["id"] == tid), None)
+
+
+# ── 게임 로직 ─────────────────────────────────────────────────────────────
+def mk_mission(badge, emoji, text, sub, color, team_id):
+    return {"badge": badge, "emoji": emoji, "text": text, "sub": sub, "color": color, "teamId": team_id}
 
 
 def draw_chance(room: dict) -> dict:
@@ -135,75 +197,99 @@ def set_event(room: dict, kind: str, text: str):
     room["lastEvent"] = {"id": room["eventSeq"], "kind": kind, "text": text}
 
 
-def advance_turn(room: dict):
-    """연결된 다음 플레이어로 턴을 넘긴다(끊긴 사람은 건너뜀)."""
-    n = len(room["players"])
-    if n == 0:
-        return
-    i = room["currentIdx"]
-    for _ in range(n):
-        i = (i + 1) % n
-        if room["players"][i]["connected"]:
-            room["currentIdx"] = i
-            return
-    room["currentIdx"] = (room["currentIdx"] + 1) % n  # 전원 끊김 폴백
+def _land_special(s: int, path: list):
+    """도착 칸 s 가 함정/소용돌이면 적용(path 연장)하고 (최종칸, effect, meta) 반환."""
+    tile = TILES[s]
+    if tile["type"] == "trap":
+        back = tile["back"]
+        for _ in range(back):
+            s = (s - 1) % TILE_COUNT
+            path.append(s)
+        return s, "trap", back
+    if tile["type"] == "reset":
+        while s != 0:
+            s = (s - 1) % TILE_COUNT
+            path.append(s)
+        return 0, "reset", 0
+    return s, None, 0
 
 
-def cur_player(room: dict):
-    if not room["players"]:
-        return None
-    return room["players"][room["currentIdx"] % len(room["players"])]
+def compute_move(team: dict, die: int):
+    """team['pos'] 를 갱신하고 (애니메이션 경로 path, effect, meta) 반환.
+    effect: None(일반) | 'win' | 'bounce' | 'trap' | 'reset'."""
+    pos = team["pos"]
+    path = []
+    target = pos + die
+    # 출발칸(0) 정확히 도착해야 골인 — 넘으면 튕겨나감
+    if pos != 0 and target >= TILE_COUNT:
+        s = pos
+        while s != 0:
+            s = (s + 1) % TILE_COUNT
+            path.append(s)              # ...→0 까지 전진
+        if target == TILE_COUNT:
+            team["pos"] = 0
+            return path, "win", 0
+        overshoot = target - TILE_COUNT
+        s = 0
+        for _ in range(overshoot):
+            s = (s - 1) % TILE_COUNT
+            path.append(s)              # 0 에서 overshoot 만큼 뒤로 튕김
+        # 튕겨 멈춘 칸도 함정/소용돌이면 일반 도착과 동일하게 적용
+        fin, eff, meta = _land_special(s, path)
+        team["pos"] = fin
+        return path, (eff or "bounce"), (meta if eff else overshoot)
+    # 일반 전진
+    s = pos
+    for _ in range(die):
+        s = (s + 1) % TILE_COUNT
+        path.append(s)
+    fin, eff, meta = _land_special(s, path)
+    team["pos"] = fin
+    return path, eff, meta
 
 
-def find_player(room: dict, pid: str):
-    for p in room["players"]:
-        if p["id"] == pid:
-            return p
-    return None
-
-
-def resolve_landing(room: dict, p: dict) -> dict:
-    """말이 멈춘 칸의 미션을 결정하고(부수효과 포함) 미션 dict를 반환."""
-    idx = p["pos"]
-    mode = room["mode"]
-    if idx == 0:
-        c = CORNER_TEXT["start"]
-        return mk_mission("🏁 출발", "🏁", c[mode], c["sub"], GOLD, p["id"])
+def resolve_tile(room: dict, team: dict) -> dict:
+    """일반 칸 도착 시 미션(또는 특수칸 안내) 반환."""
+    idx = team["pos"]
+    tid = team["id"]
     t = TILES[idx]
     if t["type"] == "corner":
         c = CORNER_TEXT[t["key"]]
         if t["key"] == "island":
-            p["skip"] = True
-            room["extraRoll"] = False
-            return mk_mission("🏝️ 무인도", "🏝️", c[mode], c["sub"], GOLD, p["id"])
+            team["skip"] = True
+            return mk_mission("🏝️ 무인도", "🏝️", c["text"], c["sub"], GOLD, tid)
         if t["key"] == "rest":
-            return mk_mission("🛋️ 휴게소", "🛋️", c[mode], c["sub"], GOLD, p["id"])
+            return mk_mission("🛋️ 휴게소", "🛋️", c["text"], c["sub"], GOLD, tid)
         if t["key"] == "roulette":
             card = draw_chance(room)
-            return mk_mission("🎡 룰렛존 → 🍀 찬스", "🍀", card[mode], "룰렛이 뽑은 찬스 카드!", CAT["chance"]["color"], p["id"])
+            return mk_mission("🎡 룰렛존 → 🍀 찬스", "🍀", card["text"], "룰렛이 뽑은 찬스 카드!", CAT["chance"]["color"], tid)
     if t["type"] == "chance":
         card = draw_chance(room)
-        return mk_mission("🍀 찬스 카드", "🍀", card[mode], "", CAT["chance"]["color"], p["id"])
+        return mk_mission("🍀 찬스 카드", "🍀", card["text"], "", CAT["chance"]["color"], tid)
     cc = CAT[t["type"]]
-    return mk_mission(f"{cc['emoji']} {cc['label']}", cc["emoji"], t[mode], "", cc["color"], p["id"])
+    return mk_mission(f"{cc['emoji']} {cc['label']}", cc["emoji"], t["text"], "", cc["color"], tid)
 
 
+def obstacle_notice(effect: str, meta: int, team: dict) -> dict:
+    tid = team["id"]; nm = team["name"]
+    if effect == "trap":
+        return mk_mission("🕳️ 함정", "🕳️", f"{nm} 함정에 걸려 {meta}칸 뒤로 밀려났어요! 😵", "한 바퀴가 멀어졌네요…", TRAP_COLOR, tid)
+    if effect == "reset":
+        return mk_mission("🌀 소용돌이", "🌀", f"{nm} 소용돌이에 휩쓸려 출발점으로! 😱", "처음부터 다시 시작…", RESET_COLOR, tid)
+    # bounce
+    return mk_mission("🎯 골인 실패", "🎯", f"정확한 수가 아니라 {meta}칸 튕겨나갔어요!", "골인은 출발칸에 딱 맞게 도착해야 해요.", "#f76707", tid)
+
+
+# ── 직렬화/전송 ───────────────────────────────────────────────────────────
 def serialize(room: dict) -> dict:
     return {
-        "code": room["code"],
-        "mode": room["mode"],
-        "phase": room["phase"],
-        "hostId": room["hostId"],
-        "currentIdx": room["currentIdx"],
-        "dice": room["dice"],
-        "mission": room["mission"],
-        "rollSeq": room["rollSeq"],
-        "lastRoll": room["lastRoll"],
-        "lastEvent": room["lastEvent"],
-        "players": [
-            {k: pl[k] for k in ("id", "name", "emoji", "color", "pos", "laps", "skip", "connected")}
-            for pl in room["players"]
-        ],
+        "code": room["code"], "phase": room["phase"], "adminId": room["adminId"],
+        "adminName": admin_name(room), "spectatorCount": spectator_count(room),
+        "currentIdx": room["currentIdx"], "winnerId": room["winnerId"],
+        "die": room["die"], "mission": room["mission"],
+        "rollSeq": room["rollSeq"], "lastRoll": room["lastRoll"], "lastEvent": room["lastEvent"],
+        "tileCount": TILE_COUNT,
+        "teams": [{k: t[k] for k in ("id", "name", "emoji", "color", "pos", "skip")} for t in room["teams"]],
     }
 
 
@@ -215,56 +301,32 @@ async def send(ws: WebSocket, obj: dict) -> bool:
         return False
 
 
+async def broadcast_msg(room: dict, obj: dict):
+    for pid, ws in list(conns.get(room["code"], {}).items()):
+        if not await send(ws, obj):
+            conns.get(room["code"], {}).pop(pid, None)
+            pl = find_participant(room, pid)
+            if pl:
+                pl["connected"] = False
+
+
 async def broadcast(room: dict):
     room["lastActive"] = time.time()
-    payload = {"type": "state", "state": serialize(room)}
-    dead = []
-    for pid, ws in list(conns.get(room["code"], {}).items()):
-        ok = await send(ws, payload)
-        if not ok:
-            dead.append(pid)
-    for pid in dead:
-        conns.get(room["code"], {}).pop(pid, None)
-        pl = find_player(room, pid)
-        if pl:
-            pl["connected"] = False
+    await broadcast_msg(room, {"type": "state", "state": serialize(room)})
 
 
 # ──────────────────────────────────────────────────────────────────────────
 # 액션 핸들러
 # ──────────────────────────────────────────────────────────────────────────
-def new_room(code: str, mode: str) -> dict:
-    return {
-        "code": code, "mode": mode if mode in ("mild", "spicy") else "mild",
-        "phase": "lobby", "hostId": None, "currentIdx": 0,
-        "dice": None, "mission": None, "rollSeq": 0, "lastRoll": None,
-        "extraRoll": False, "extraRollMsg": "",
-        "eventSeq": 0, "lastEvent": None,
-        "players": [], "lastActive": time.time(),
-    }
-
-
-def add_player(room: dict, name: str) -> dict:
-    slot = free_slot(room)
-    pid = gen_pid()
-    p = {
-        "id": pid, "name": (name or "").strip()[:8] or f"플레이어 {len(room['players'])+1}",
-        "emoji": EMOJIS[slot % len(EMOJIS)], "color": COLORS[slot % len(COLORS)],
-        "slot": slot, "pos": 0, "laps": 0, "skip": False, "connected": True,
-    }
-    room["players"].append(p)
-    return p
-
-
 async def handle_create(ws, msg):
     code = gen_code()
-    room = new_room(code, msg.get("mode", "mild"))
+    room = new_room(code)
     rooms[code] = room
     conns[code] = {}
-    p = add_player(room, msg.get("name", ""))
-    room["hostId"] = p["id"]
+    p = add_participant(room, msg.get("name", ""), "admin")
+    room["adminId"] = p["id"]
     conns[code][p["id"]] = ws
-    await send(ws, {"type": "joined", "room": code, "playerId": p["id"]})
+    await send(ws, {"type": "joined", "room": code, "playerId": p["id"], "role": "admin"})
     await broadcast(room)
     return code, p["id"]
 
@@ -275,15 +337,12 @@ async def handle_join(ws, msg):
     if not room:
         await send(ws, {"type": "error", "message": "방을 찾을 수 없어요. 코드를 확인해 주세요."})
         return None, None
-    if room["phase"] != "lobby":
-        await send(ws, {"type": "error", "message": "이미 시작된 게임이에요."})
+    if spectator_count(room) >= MAX_SPECTATORS:
+        await send(ws, {"type": "error", "message": "관람 인원이 가득 찼어요."})
         return None, None
-    if len(room["players"]) >= MAX_PLAYERS:
-        await send(ws, {"type": "error", "message": f"방이 꽉 찼어요 (최대 {MAX_PLAYERS}명)."})
-        return None, None
-    p = add_player(room, msg.get("name", ""))
+    p = add_participant(room, msg.get("name", ""), "spectator")
     conns[code][p["id"]] = ws
-    await send(ws, {"type": "joined", "room": code, "playerId": p["id"]})
+    await send(ws, {"type": "joined", "room": code, "playerId": p["id"], "role": "spectator"})
     await broadcast(room)
     return code, p["id"]
 
@@ -292,82 +351,104 @@ async def handle_rejoin(ws, msg):
     code = (msg.get("room") or "").strip().upper()
     pid = msg.get("playerId")
     room = rooms.get(code)
-    if not room or not find_player(room, pid):
+    p = find_participant(room, pid) if room else None
+    if not room or not p:
         await send(ws, {"type": "expired"})
         return None, None
-    p = find_player(room, pid)
     p["connected"] = True
     conns.setdefault(code, {})[pid] = ws
-    await send(ws, {"type": "joined", "room": code, "playerId": pid})
+    await send(ws, {"type": "joined", "room": code, "playerId": pid, "role": p["role"]})
     await broadcast(room)
     return code, pid
 
 
-async def handle_set_mode(room, pid, msg):
-    if pid != room["hostId"]:
+def is_admin(room, pid):
+    return pid == room["adminId"]
+
+
+async def handle_add_team(room, pid, msg):
+    if not is_admin(room, pid) or room["phase"] != "lobby":
         return
-    mode = msg.get("mode")
-    if mode in ("mild", "spicy"):
-        room["mode"] = mode
-        set_event(room, "mode", "😇 순한맛으로 전환" if mode == "mild" else "🔥 매운맛으로 전환")
-        await broadcast(room)
+    if len(room["teams"]) >= MAX_TEAMS:
+        ws = conns.get(room["code"], {}).get(pid)
+        if ws:
+            await send(ws, {"type": "error", "message": f"팀은 최대 {MAX_TEAMS}개까지예요."})
+        return
+    add_team(room, msg.get("name", ""))
+    await broadcast(room)
+
+
+async def handle_remove_team(room, pid, msg):
+    if not is_admin(room, pid) or room["phase"] != "lobby":
+        return
+    room["teams"] = [t for t in room["teams"] if t["id"] != msg.get("teamId")]
+    await broadcast(room)
+
+
+async def handle_rename_team(room, pid, msg):
+    if not is_admin(room, pid) or room["phase"] != "lobby":
+        return
+    t = find_team(room, msg.get("teamId"))
+    if t:
+        t["name"] = (msg.get("name") or "").strip()[:8] or t["name"]
+    await broadcast(room)
+
+
+def reset_board(room):
+    for t in room["teams"]:
+        t["pos"] = 0; t["skip"] = False
+    room["currentIdx"] = 0; room["mission"] = None; room["die"] = None
+    room["extraRoll"] = False; room["winnerId"] = None; room["lastRoll"] = None
 
 
 async def handle_start(room, pid, msg):
-    if pid != room["hostId"] or room["phase"] != "lobby":
+    if not is_admin(room, pid) or room["phase"] != "lobby":
         return
-    if len(room["players"]) < 2:
+    if len(room["teams"]) < 2:
         ws = conns.get(room["code"], {}).get(pid)
         if ws:
-            await send(ws, {"type": "error", "message": "2명 이상이어야 시작할 수 있어요."})
+            await send(ws, {"type": "error", "message": "팀이 2개 이상이어야 시작할 수 있어요."})
         return
+    reset_board(room)
     room["phase"] = "playing"
-    room["currentIdx"] = 0
-    for p in room["players"]:
-        p["pos"] = 0; p["laps"] = 0; p["skip"] = False
-    room["mission"] = None; room["dice"] = None; room["extraRoll"] = False
-    set_event(room, "start", f"🎲 게임 시작! {room['players'][0]['name']}님부터")
+    set_event(room, "start", f"🎲 게임 시작! {room['teams'][0]['name']}부터 · 한 바퀴 먼저 완주하면 우승!")
     await broadcast(room)
 
 
 async def handle_roll(room, pid, msg):
-    if room["phase"] != "playing" or room["mission"] is not None:
+    if not is_admin(room, pid) or room["phase"] != "playing" or room["mission"] is not None:
         return
-    p = cur_player(room)
-    if not p or p["id"] != pid:
+    team = cur_team(room)
+    if not team:
         return
-    # 무인도에서 쉬는 차례
-    if p["skip"]:
-        p["skip"] = False
-        set_event(room, "skip", f"🏝️ {p['name']}님 무인도에서 한 턴 쉼!")
+    if team["skip"]:
+        team["skip"] = False
+        set_event(room, "skip", f"🏝️ {team['name']} 무인도에서 한 턴 쉼!")
         advance_turn(room)
         await broadcast(room)
         return
-    d1, d2 = random.randint(1, 6), random.randint(1, 6)
-    dbl = d1 == d2
-    room["extraRoll"] = dbl
-    room["extraRollMsg"] = "🎲 더블! 한 번 더 굴려요!" if dbl else ""
-    steps = d1 + d2
-    prev = p["pos"]
-    passed = False
-    for i in range(steps):
-        p["pos"] = (p["pos"] + 1) % 24
-        if p["pos"] == 0:
-            p["laps"] += 1
-            if i < steps - 1:
-                passed = True
-    room["dice"] = [d1, d2]
+    room["extraRoll"] = False
+    die = random.randint(1, 3)
+    path, effect, meta = compute_move(team, die)
+    room["die"] = die
     room["rollSeq"] += 1
-    room["lastRoll"] = {"playerId": p["id"], "from": prev, "steps": steps, "d1": d1, "d2": d2, "double": dbl}
-    if passed:
-        set_event(room, "pass", PASS_START[room["mode"]])
-    room["mission"] = resolve_landing(room, p)
+    room["lastRoll"] = {"teamId": team["id"], "die": die, "path": path, "effect": effect, "meta": meta}
+    if effect == "win":
+        room["phase"] = "finished"
+        room["winnerId"] = team["id"]
+        room["mission"] = None
+        set_event(room, "win", f"🎉 {team['name']} 한 바퀴 완주 — 우승! 🏆")
+        await broadcast(room)
+        return
+    if effect in ("trap", "reset", "bounce"):
+        room["mission"] = obstacle_notice(effect, meta, team)
+    else:
+        room["mission"] = resolve_tile(room, team)
     await broadcast(room)
 
 
 async def handle_confirm(room, pid, msg):
-    m = room["mission"]
-    if not m or m.get("forPlayerId") != pid:
+    if not is_admin(room, pid) or not room["mission"]:
         return
     room["mission"] = None
     if room["extraRoll"]:
@@ -379,55 +460,70 @@ async def handle_confirm(room, pid, msg):
 
 
 async def handle_restart(room, pid, msg):
-    if pid != room["hostId"]:
+    if not is_admin(room, pid):
         return
-    for p in room["players"]:
-        p["pos"] = 0; p["laps"] = 0; p["skip"] = False
-    room["currentIdx"] = 0; room["mission"] = None; room["dice"] = None
-    room["extraRoll"] = False
+    reset_board(room)
+    room["phase"] = "playing"
     set_event(room, "restart", "↺ 처음부터 다시!")
     await broadcast(room)
 
 
-async def handle_disconnect(code, pid):
+async def handle_to_lobby(room, pid, msg):
+    if not is_admin(room, pid):
+        return
+    reset_board(room)
+    room["phase"] = "lobby"
+    await broadcast(room)
+
+
+async def handle_emoji(room, pid, msg):
+    e = msg.get("e")
+    if e not in REACTIONS:
+        return
+    p = find_participant(room, pid)
+    now = time.time()
+    if not p or now - p.get("emojiTs", 0.0) < EMOJI_THROTTLE:
+        return
+    if now - room.get("emojiRoomTs", 0.0) < ROOM_EMOJI_MIN:   # 방 전체 폭주 방지
+        return
+    p["emojiTs"] = now
+    room["emojiRoomTs"] = now
+    room["lastActive"] = now
+    await broadcast_msg(room, {"type": "emoji", "e": e})
+
+
+HANDLERS = {
+    "addTeam": handle_add_team, "removeTeam": handle_remove_team, "renameTeam": handle_rename_team,
+    "start": handle_start, "roll": handle_roll, "confirm": handle_confirm,
+    "restart": handle_restart, "toLobby": handle_to_lobby, "emoji": handle_emoji,
+}
+
+
+async def handle_disconnect(code, pid, *, leaving=False):
     room = rooms.get(code)
     if not room:
         return
     conns.get(code, {}).pop(pid, None)
-    p = find_player(room, pid)
+    p = find_participant(room, pid)
     if not p:
         return
-    if room["phase"] == "lobby":
-        # 로비에서는 나가면 제거
-        room["players"] = [x for x in room["players"] if x["id"] != pid]
-        if room["hostId"] == pid:
-            room["hostId"] = room["players"][0]["id"] if room["players"] else None
-        if not room["players"]:
-            rooms.pop(code, None); conns.pop(code, None)
-            return
+    was_admin = (p["role"] == "admin")
+    if leaving:
+        room["participants"] = [x for x in room["participants"] if x["id"] != pid]
     else:
         p["connected"] = False
-        # 미션 수행 중 행위자가 끊기면 자동 확인 처리
-        if room["mission"] and room["mission"].get("forPlayerId") == pid:
-            room["mission"] = None
-            if room["extraRoll"]:
-                room["extraRoll"] = False
-            advance_turn(room)
-        elif cur_player(room) and cur_player(room)["id"] == pid:
-            advance_turn(room)
-        if room["hostId"] == pid:
-            alive = [x for x in room["players"] if x["connected"]]
-            room["hostId"] = alive[0]["id"] if alive else room["hostId"]
+    # 관리자가 빠지면(자발적 나가기든 연결 끊김이든) 연결된 다른 참가자에게 즉시 이양
+    if was_admin and room["adminId"] == pid:
+        nxt = next((x for x in room["participants"] if x["connected"] and x["id"] != pid), None)
+        if nxt:
+            nxt["role"] = "admin"
+            room["adminId"] = nxt["id"]
+            if not leaving:
+                p["role"] = "spectator"  # 끊긴 옛 관리자는 재접속 시 관람객으로
+        elif leaving:
+            rooms.pop(code, None); conns.pop(code, None); return
+        # not leaving & 연결된 다른 참가자 없음 → adminId 유지(본인 재접속으로 복귀)
     await broadcast(room)
-
-
-HANDLERS = {
-    "setMode": handle_set_mode,
-    "start": handle_start,
-    "roll": handle_roll,
-    "confirm": handle_confirm,
-    "restart": handle_restart,
-}
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -462,7 +558,7 @@ async def ws_endpoint(ws: WebSocket):
                     await send(ws, {"type": "pong"})
                 elif mtype == "leave":
                     if code and pid:
-                        await handle_disconnect(code, pid)
+                        await handle_disconnect(code, pid, leaving=True)
                         code = pid = None
                 elif mtype in HANDLERS and code and pid:
                     room = rooms.get(code)
