@@ -222,7 +222,7 @@ function renderLobby(s){
 
 /* ===== 3D 보드 (Three.js) ===== */
 let renderer,scene,camera,controls,raf=0,boardOk=false;
-let tileMeshes=[],tokenMeshes={},centerObj=null;
+let tileMeshes=[],tokenMeshes={},centerObj=null,dieMesh=null;
 const SP=1.16, TILE=1.02, TH=0.42; // 간격/타일크기/높이
 function worldOf(idx){const[r,c]=GPOS[idx];return{x:(c-4)*SP, z:(r-4)*SP};}
 function colNum(hex){return new THREE.Color(hex);}
@@ -239,6 +239,35 @@ function makeEmojiTexture(e){
   const cv=document.createElement('canvas');cv.width=cv.height=128;const x=cv.getContext('2d');
   x.textAlign='center';x.textBaseline='middle';x.font='96px "Apple Color Emoji","Segoe UI Emoji",sans-serif';x.fillText(e,64,70);
   const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
+}
+// 주사위 면(점) 텍스처
+function makeDieFace(n){
+  const cv=document.createElement('canvas');cv.width=cv.height=128;const x=cv.getContext('2d');
+  const r=24;x.fillStyle='#fffdf7';x.beginPath();x.moveTo(r,2);x.arcTo(126,2,126,126,r);x.arcTo(126,126,2,126,r);x.arcTo(2,126,2,2,r);x.arcTo(2,2,126,2,r);x.closePath();x.fill();
+  x.fillStyle='#2a2342';const P=30,M=64,F=98;
+  const pts={1:[[M,M]],2:[[P,P],[F,F]],3:[[P,P],[M,M],[F,F]],4:[[P,P],[F,P],[P,F],[F,F]],5:[[P,P],[F,P],[M,M],[P,F],[F,F]],6:[[P,P],[F,P],[P,M],[F,M],[P,F],[F,F]]};
+  (pts[n]||[]).forEach(([cx,cy])=>{x.beginPath();x.arc(cx,cy,13,0,7);x.fill();});
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;return t;
+}
+function buildDie(){
+  const faces=[1,6,2,5,3,4]; // [+x,-x,+y,-y,+z,-z] (마주보는 면 합=7)
+  const mats=faces.map(n=>new THREE.MeshStandardMaterial({map:makeDieFace(n),roughness:.45,metalness:.08}));
+  const m=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,1.1),mats);
+  m.position.set(0,1.05,0);m.castShadow=true;m.rotation.set(-Math.PI/2,0,0); // 평소 3 표시
+  return m;
+}
+// 값 v 를 위(+Y)로 보내는 회전
+const DIE_UP={1:[0,0,Math.PI/2],2:[0,0,0],3:[-Math.PI/2,0,0]};
+function animateDie3D(die){
+  if(!dieMesh) return Promise.resolve();
+  const from={x:dieMesh.rotation.x,y:dieMesh.rotation.y,z:dieMesh.rotation.z};
+  const up=DIE_UP[die]||[0,0,0];
+  const sx=Math.PI*2*(2+(Math.random()*2|0)), sy=Math.PI*2*(1+(Math.random()*2|0));
+  const to={x:up[0]+sx,y:up[1]+sy,z:up[2]};
+  return tween(760,k=>{ const e=1-Math.pow(1-k,3);
+    dieMesh.rotation.x=from.x+(to.x-from.x)*e; dieMesh.rotation.y=from.y+(to.y-from.y)*e; dieMesh.rotation.z=from.z+(to.z-from.z)*e;
+    dieMesh.position.y=1.05+Math.sin(k*Math.PI)*0.6;
+  }).then(()=>{ if(dieMesh){ dieMesh.rotation.set(up[0],up[1],up[2]); dieMesh.position.y=1.05; } });
 }
 function buildBoard3D(){
   if(!window.THREE){ $('#boardFallback').style.display='flex'; return; }
@@ -261,7 +290,7 @@ function buildBoard3D(){
     renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
     // 기존 보드 제거
     tileMeshes.forEach(t=>scene.remove(t)); tileMeshes=[];
-    if(centerObj){scene.remove(centerObj);centerObj=null;}
+    if(centerObj){scene.remove(centerObj);centerObj=null;dieMesh=null;}
     Object.values(tokenMeshes).forEach(g=>scene.remove(g)); tokenMeshes={};
     // 베이스 판
     const base=new THREE.Mesh(new THREE.BoxGeometry(7*SP+0.7,0.5,7*SP+0.7), new THREE.MeshStandardMaterial({color:0x241640,roughness:.9,metalness:.05}));
@@ -279,10 +308,10 @@ function buildBoard3D(){
       scene.add(mesh); tileMeshes.push(mesh);
     }
     // 중앙 장식
+    centerObj=new THREE.Group();
     const plat=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.7,0.25,40), new THREE.MeshStandardMaterial({color:0x1c1234,roughness:.8,emissive:0x2a1d55,emissiveIntensity:.4}));
-    plat.position.y=0.12; plat.receiveShadow=true; scene.add(plat);
-    const dieSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:makeEmojiTexture('🎲'),transparent:true})); dieSpr.scale.set(1.2,1.2,1.2); dieSpr.position.set(0,1.0,0);
-    scene.add(dieSpr); centerObj=new THREE.Group(); centerObj.add(plat); centerObj.add(dieSpr); // group for cleanup
+    plat.position.y=0.12; plat.receiveShadow=true; centerObj.add(plat);
+    dieMesh=buildDie(); centerObj.add(dieMesh);
     scene.add(centerObj);
     boardOk=true; $('#boardFallback').style.display='none';
     if(!raf) loop();
@@ -322,11 +351,12 @@ function snapTokens(state){
 }
 function highlightTile(idx,on){ const m=tileMeshes.find(t=>t.userData&&t.userData.idx===idx); if(!m)return; m.position.y=on?m.userData.baseY+0.28:m.userData.baseY; m.material[2].emissive&&(m.material[2].emissive.setHex(on?0x4a3a00:0x000000)); }
 
-function tween(dur,fn){return new Promise(res=>{const t0=performance.now();(function f(now){let k=Math.min(1,(now-t0)/dur);fn(k);k<1?requestAnimationFrame(f):res();})(performance.now());});}
+// setInterval 기반 트윈 — 탭이 백그라운드/오프스크린이라 rAF가 멈춰도 실경과시간으로 항상 완료(게임 잠금 방지)
+function tween(dur,fn){return new Promise(res=>{const t0=performance.now();const iv=setInterval(()=>{let k=Math.min(1,(performance.now()-t0)/dur);try{fn(k);}catch(e){}if(k>=1){clearInterval(iv);res();}},16);});}
 async function animateRoll(state){
   animating=true;S=state;applyControls(state,true);buildTokens(state);
   const lr=state.lastRoll;
-  await animateDie(lr.die);
+  await Promise.all([animateDie(lr.die), animateDie3D(lr.die)]);
   $('#cRes').textContent=`🎲 ${lr.die} 칸 이동!`;
   // 나머지 토큰 스냅
   state.teams.forEach(t=>{ if(t.id!==lr.teamId) renderedPos[t.id]=t.pos; });
