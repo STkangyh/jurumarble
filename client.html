@@ -52,6 +52,7 @@
     background:rgba(15,9,30,.62); border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:8px 16px; text-align:center; color:#fff; backdrop-filter:blur(6px); min-width:54%;}
   .hud .r1{display:flex; align-items:center; justify-content:center; gap:7px; font-weight:900; font-size:16px;} .hud .r1 .tk{font-size:22px;} .hud .rem{color:#ffe08a; font-size:12px; font-weight:800;}
   .hud .r2{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:2px;} .hud .die{font-size:30px; line-height:1;} .hud .res{color:#d7ccff; font-size:12px; font-weight:700; min-height:1em;}
+  .bombline{margin-top:4px; font-size:12px; font-weight:800; color:#ffc9c9; background:rgba(201,42,42,.32); border-radius:10px; padding:3px 10px;}
   .draghint{position:absolute; bottom:6px; left:50%; transform:translateX(-50%); z-index:4; color:rgba(255,255,255,.5); font-size:11px; font-weight:700; pointer-events:none;}
   #emojiLayer{position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:6;}
   .efloat{position:absolute; bottom:4%; will-change:transform,opacity; animation:floatUp 4s ease-out forwards; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));}
@@ -129,7 +130,8 @@
     <canvas id="board3d"></canvas>
     <div id="boardFallback">3D 보드를 불러오지 못했어요.<br>인터넷 연결을 확인 후 새로고침 해주세요.</div>
     <div class="hud"><div class="r1"><span class="tk" id="cTok">🦊</span><b id="cName">-</b><span class="rem" id="cRemain"></span></div>
-      <div class="r2"><span class="die" id="cDie">⚀</span><span class="res" id="cRes">대기 중…</span></div></div>
+      <div class="r2"><span class="die" id="cDie">⚀</span><span class="res" id="cRes">대기 중…</span></div>
+      <div class="bombline hidden" id="bombHud"></div></div>
     <div class="draghint">↻ 드래그해서 3D로 둘러보기</div>
     <div id="emojiLayer"></div>
   </div>
@@ -153,8 +155,8 @@
 /* ===== 보드 메타(서버 TILES 인덱스와 일치) ===== */
 const CAT={talk:{e:'💬',l:'토크',c:'#845ef7'},perform:{e:'🎭',l:'장기',c:'#f06595'},game:{e:'🎲',l:'대결',c:'#4dabf7'},penalty:{e:'🔥',l:'벌칙',c:'#ff922b'},chance:{e:'🍀',l:'찬스',c:'#51cf66'}};
 const CORNERS={start:{e:'🏁',l:'출발',c:'#ffd43b'},island:{e:'🏝️',l:'무인도',c:'#20c997'},rest:{e:'🛋️',l:'휴게소',c:'#ffd43b'},roulette:{e:'🎡',l:'룰렛존',c:'#f783ac'}};
-const SPECIAL={trap:{e:'🕳️',l:'함정',c:'#e8590c'},reset:{e:'🌀',l:'소용돌이',c:'#7048e8'}};
-const TILE_KIND=['start','penalty','talk','trap','chance','game','island','talk','penalty','trap','game','chance','rest','perform','game','reset','penalty','chance','roulette','game','perform','talk','trap','chance'];
+const SPECIAL={trap:{e:'🕳️',l:'함정',c:'#e8590c'},reset:{e:'🌀',l:'소용돌이',c:'#7048e8'},bomb:{e:'💣',l:'폭탄주',c:'#c92a2a'},ingredient:{e:'🍶',l:'재료',c:'#9c36b5'},quiz:{e:'🧠',l:'퀴즈',c:'#1098ad'},chosung:{e:'🔤',l:'초성',c:'#f06595'}};
+const TILE_KIND=['start','penalty','ingredient','trap','chance','game','island','ingredient','penalty','trap','quiz','chance','rest','chosung','game','reset','penalty','chance','roulette','game','perform','bomb','trap','chance'];
 const GPOS=[[7,7],[7,6],[7,5],[7,4],[7,3],[7,2],[7,1],[6,1],[5,1],[4,1],[3,1],[2,1],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]];
 const DIE3=['⚀','⚁','⚂'];
 const REACTIONS=['😂','❤️','🔥','👏','🎉','😮','👍','🍻','💯','😭'];
@@ -388,6 +390,10 @@ function applyControls(state,lock){
   if(cp){$('#cTok').textContent=cp.emoji;$('#cName').textContent=cp.name;const rem=(state.tileCount-cp.pos)%state.tileCount;$('#cRemain').textContent=cp.pos===0?'🏁 출발선':`🏁까지 ${rem}칸`;}
   // 직전 롤이 현재 팀 것이 아니면(턴 넘어감/무인도 스킵) 중앙 결과 잔상 정리
   if(!lock && !state.mission && cp && !(state.lastRoll && state.lastRoll.teamId===cp.id)){ $('#cRes').textContent='대기 중…'; }
+  // 폭탄주 누적 표시
+  const bh=$('#bombHud'); const bc=state.bombCount||0;
+  bh.classList.toggle('hidden', bc<=0);
+  if(bc>0) bh.textContent=`💣 폭탄주 ${bc}잔 충전 — ${(state.bombItems||[]).join('·')}`;
   const btn=$('#rollBtn');if(btn){btn.classList.remove('skipmode');const mo=!!state.mission,over=state.phase==='finished';
     if(over){btn.disabled=true;btn.textContent='🏆 게임 종료';}
     else if(lock||mo){btn.disabled=true;btn.textContent=mo?'미션 진행 중…':'굴리는 중…';}

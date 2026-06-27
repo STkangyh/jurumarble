@@ -39,23 +39,58 @@ CAT = {
 }
 TRAP_COLOR = "#e8590c"
 RESET_COLOR = "#7048e8"
+BOMB_COLOR = "#c92a2a"
+INGREDIENT_COLOR = "#9c36b5"
+QUIZ_COLOR = "#1098ad"
+CHOSUNG_COLOR = "#f06595"
+CHOSUNG = [  # 초성 게임 (cho: 초성, ex: 예시 답)
+    {"cho": "ㅅㄱ", "ex": "사과·시계·수건"},
+    {"cho": "ㄱㅈ", "ex": "과자·감자·가족"},
+    {"cho": "ㅁㄹ", "ex": "머리·마늘·마루"},
+    {"cho": "ㅂㅅ", "ex": "버스·박수·방석"},
+    {"cho": "ㅎㄱ", "ex": "학교·한국·향기"},
+    {"cho": "ㄷㄹ", "ex": "다리·도로·달력"},
+    {"cho": "ㅈㄱ", "ex": "장기·자기·종교"},
+    {"cho": "ㅊㄱ", "ex": "친구·축구·창고"},
+    {"cho": "ㅇㅈ", "ex": "의자·우주·양주"},
+    {"cho": "ㅋㅍ", "ex": "커피·카페"},
+    {"cho": "ㄴㅁ", "ex": "나무·남매"},
+    {"cho": "ㅂㄹ", "ex": "바람·보리·불량"},
+]
+INGREDIENTS = ["소주", "맥주", "양주", "콜라", "사이다", "매실주", "막걸리"]  # 폭탄주 재료(랜덤)
+QUIZ = [  # 상식 퀴즈 (q: 문제, a: 정답)
+    {"q": "세계에서 가장 넓은 대양은?", "a": "태평양"},
+    {"q": "무지개는 모두 몇 가지 색깔?", "a": "7가지"},
+    {"q": "태양계에서 가장 큰 행성은?", "a": "목성"},
+    {"q": "한글을 만든 조선의 왕은?", "a": "세종대왕"},
+    {"q": "빛의 삼원색(RGB)은?", "a": "빨강·초록·파랑"},
+    {"q": "펭귄이 사는 곳은 남극일까 북극일까?", "a": "남극"},
+    {"q": "거미의 다리는 모두 몇 개?", "a": "8개"},
+    {"q": "올림픽은 몇 년마다 열릴까?", "a": "4년"},
+    {"q": "에펠탑이 있는 나라는?", "a": "프랑스"},
+    {"q": "물의 화학식은?", "a": "H₂O"},
+    {"q": "대한민국에서 가장 높은 산은?", "a": "한라산"},
+    {"q": "세계에서 가장 긴 강은?", "a": "나일강"},
+    {"q": "우리 몸에서 피를 펌프질하는 기관은?", "a": "심장"},
+    {"q": "1년은 모두 몇 개월?", "a": "12개월"},
+]
 
 # 24칸. trap=뒤로 N칸, reset=출발 복귀.
 TILES = [
     {"type": "corner", "key": "start", "emoji": "🏁", "label": "출발"},
-    {"type": "penalty", "text": "원샷! 잔 비우기. 잔이 비어 있으면 옆 사람이 채워준 한 잔."},
-    {"type": "talk",    "text": "이미지 게임! '여기서 가장 ○○할 것 같은 사람'에 다 같이 손가락 지목, 최다 득표자 한 잔."},
+    {"type": "penalty", "text": "걸린 팀만 원샷! 🍺"},
+    {"type": "ingredient"},
     {"type": "trap", "back": 2},
     {"type": "chance"},
-    {"type": "game",    "text": "전원 가위바위보, 최종 패자 한 잔."},
+    {"type": "game",    "text": "각 팀에서 술 제일 센 사람 나와서 가위바위보! 진 팀 한 잔 🍺"},
     {"type": "corner", "key": "island", "emoji": "🏝️", "label": "무인도"},
-    {"type": "talk",    "text": "가장 가고 싶은 여행지 + 함께 갈 사람 지목, 못 정하면 한 잔."},
-    {"type": "penalty", "text": "폭탄주 직접 제조해서 본인이 원샷."},
+    {"type": "ingredient"},
+    {"type": "penalty", "text": "의리 게임! 우리 팀끼리 소주 한 병을 나눠 마시기 🍶🤝"},
     {"type": "trap", "back": 3},
-    {"type": "game",    "text": "병뚜껑 튕기기 도전, 실패하면 한 모금."},
+    {"type": "quiz"},
     {"type": "chance"},
     {"type": "corner", "key": "rest", "emoji": "🛋️", "label": "휴게소"},
-    {"type": "perform", "text": "제스처 게임! 못 맞히면 출제자·정답자 같이 한 모금."},
+    {"type": "chosung"},
     {"type": "game",    "text": "눈치게임, 마지막까지 못 외친 사람 한 잔."},
     {"type": "reset"},
     {"type": "penalty", "text": "시계 방향으로 전원 한 모금씩."},
@@ -63,7 +98,7 @@ TILES = [
     {"type": "corner", "key": "roulette", "emoji": "🎡", "label": "룰렛존"},
     {"type": "game",    "text": "3·6·9 게임! 틀린 사람 벌주 한 잔."},
     {"type": "perform", "text": "옆 팀과 장기자랑 대결, 진 쪽이 한 잔."},
-    {"type": "talk",    "text": "로또 1등 당첨되면? 5초 안에 답 못 하면 한 잔."},
+    {"type": "bomb"},
     {"type": "trap", "back": 2},
     {"type": "chance"},
 ]
@@ -71,18 +106,16 @@ TILES = [
 CHANCE = [
     {"text": "행운의 흑기사권 1회 획득! 마실 차례를 남에게 넘길 수 있어요."},
     {"text": "다 같이 건배 후 한 모금 🍻"},
-    {"text": "왼쪽 팀과 잔 바꿔서 한 잔."},
+    {"text": "양옆 팀이 한 잔씩! 🍺"},
     {"text": "주사위 한 번 더! 🎲", "again": True},
     {"text": "지목한 팀과 묵찌빠, 진 팀 한 잔."},
     {"text": "옆 팀과 눈싸움, 먼저 웃은 팀 한 잔."},
-    {"text": "30초 침묵! 먼저 말한 사람 벌주."},
-    {"text": "전원 기립! 제일 늦게 일어난 사람 한 잔."},
+    {"text": "진행자(관리자)가 한 잔! 🍻"},
     {"text": "다 같이 짠하고 한 모금 🍻 인증샷은 덤 📸"},
-    {"text": "옆 팀과 동시에 한 모금, 박자 틀리면 한 잔 더."},
 ]
 
 CORNER_TEXT = {
-    "island":   {"text": "무인도 표류 🏝️ 한 잔 마시고 다음 차례 쉬기.", "sub": "이 팀은 다음 차례에 자동으로 한 번 쉽니다."},
+    "island":   {"text": "무인도 표류 🏝️ 다음 차례는 쉬어요.", "sub": "이 팀은 다음 차례에 자동으로 한 번 쉽니다."},
     "rest":     {"text": "휴게소 😌 안주 챙기는 시간! 벌주·미션 없음.", "sub": "안전지대 — 편하게 쉬어가세요."},
     "roulette": {"text": "룰렛 당첨 🎡 찬스 카드 1장 뽑기!", "sub": ""},
 }
@@ -121,7 +154,7 @@ def gen_id() -> str:
 def new_room(code: str) -> dict:
     return {
         "code": code, "phase": "lobby", "adminId": None, "currentIdx": 0,
-        "teams": [], "participants": [], "winnerId": None,
+        "teams": [], "participants": [], "winnerId": None, "bomb": [],
         "die": None, "mission": None, "rollSeq": 0, "lastRoll": None,
         "extraRoll": False, "extraRollMsg": "",
         "eventSeq": 0, "lastEvent": None, "lastActive": time.time(),
@@ -266,6 +299,29 @@ def resolve_tile(room: dict, team: dict) -> dict:
     if t["type"] == "chance":
         card = draw_chance(room)
         return mk_mission("🍀 찬스 카드", "🍀", card["text"], "", CAT["chance"]["color"], tid)
+    if t["type"] == "quiz":
+        q = random.choice(QUIZ)
+        return mk_mission("🧠 상식 퀴즈", "🧠", f"Q. {q['q']}",
+                          f"정답: {q['a']} · 관리자가 읽어주고 못 맞히면 한 잔!", QUIZ_COLOR, tid)
+    if t["type"] == "chosung":
+        c = random.choice(CHOSUNG)
+        return mk_mission("🔤 초성 게임", "🔤", f"'{c['cho']}' 초성으로 단어 말하기! 5초 안에 못 대면 한 잔",
+                          f"예: {c['ex']}", CHOSUNG_COLOR, tid)
+    if t["type"] == "ingredient":
+        ing = random.choice(INGREDIENTS)
+        room["bomb"].append(ing)
+        n = len(room["bomb"])
+        return mk_mission("🍶 폭탄주 재료", "🍶",
+                          f"폭탄주에 '{ing}' 추가! 지금 {n}잔 분량 쌓였어요 💥",
+                          "💣 폭탄주 칸을 밟는 팀이 전부 마셔요!", INGREDIENT_COLOR, tid)
+    if t["type"] == "bomb":
+        b = room["bomb"]
+        if b:
+            n = len(b); items = " + ".join(b); room["bomb"] = []
+            return mk_mission("💣 폭탄주 폭발!", "💣",
+                              f"{team['name']}이(가) {n}잔짜리 폭탄주({items}) 원샷! 🍻💥",
+                              "폭탄주가 초기화됐어요.", BOMB_COLOR, tid)
+        return mk_mission("💣 폭탄주", "💣", "폭탄주가 아직 비어 있어요! 운 좋게 통과 😅", "", BOMB_COLOR, tid)
     cc = CAT[t["type"]]
     return mk_mission(f"{cc['emoji']} {cc['label']}", cc["emoji"], t["text"], "", cc["color"], tid)
 
@@ -288,7 +344,7 @@ def serialize(room: dict) -> dict:
         "currentIdx": room["currentIdx"], "winnerId": room["winnerId"],
         "die": room["die"], "mission": room["mission"],
         "rollSeq": room["rollSeq"], "lastRoll": room["lastRoll"], "lastEvent": room["lastEvent"],
-        "tileCount": TILE_COUNT,
+        "tileCount": TILE_COUNT, "bombCount": len(room["bomb"]), "bombItems": list(room["bomb"]),
         "teams": [{k: t[k] for k in ("id", "name", "emoji", "color", "pos", "skip")} for t in room["teams"]],
     }
 
@@ -398,7 +454,7 @@ def reset_board(room):
     for t in room["teams"]:
         t["pos"] = 0; t["skip"] = False
     room["currentIdx"] = 0; room["mission"] = None; room["die"] = None
-    room["extraRoll"] = False; room["winnerId"] = None; room["lastRoll"] = None
+    room["extraRoll"] = False; room["winnerId"] = None; room["lastRoll"] = None; room["bomb"] = []
 
 
 async def handle_start(room, pid, msg):
