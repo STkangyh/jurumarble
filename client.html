@@ -45,7 +45,7 @@
   .topbar{display:flex; align-items:center; justify-content:space-between; gap:8px; max-width:560px; width:100%; margin:0 auto; position:relative; z-index:5;}
   .topbar .right{display:flex; gap:6px; align-items:center;}
   .icon-btn{border:none; background:rgba(255,255,255,.14); color:#fff; width:38px; height:38px; border-radius:11px; font-size:17px; cursor:pointer;}
-  .board-wrap{flex:1; min-height:0; position:relative;}
+  .board-wrap{flex:1; min-height:0; position:relative; background:radial-gradient(58% 44% at 50% 42%, rgba(124,58,237,.30), rgba(18,10,38,0) 70%);}
   #board3d{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
   #boardFallback{position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; color:#cfc6ea; font-weight:700; padding:24px;}
   .hud{position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:4; pointer-events:none;
@@ -253,7 +253,7 @@ function makeDieFace(n){
 }
 function buildDie(){
   const faces=[1,6,2,5,3,4]; // [+x,-x,+y,-y,+z,-z] (마주보는 면 합=7)
-  const mats=faces.map(n=>new THREE.MeshStandardMaterial({map:makeDieFace(n),roughness:.45,metalness:.08}));
+  const mats=faces.map(n=>new THREE.MeshStandardMaterial({map:makeDieFace(n),roughness:.25,metalness:.3,emissive:0x222233,emissiveIntensity:.25}));
   const m=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,1.1),mats);
   m.position.set(0,1.05,0);m.castShadow=true;m.rotation.set(-Math.PI/2,0,0); // 평소 3 표시
   return m;
@@ -284,10 +284,14 @@ function buildBoard3D(){
       controls=new THREE.OrbitControls(camera,renderer.domElement);
       controls.target.set(0,0,0); controls.enablePan=false; controls.enableDamping=true; controls.dampingFactor=.09;
       controls.minDistance=7.5; controls.maxDistance=17; controls.minPolarAngle=0.25; controls.maxPolarAngle=1.18; controls.rotateSpeed=.7;
-      const amb=new THREE.AmbientLight(0xffffff,0.72); scene.add(amb);
-      const dir=new THREE.DirectionalLight(0xffffff,0.95); dir.position.set(5,13,7); dir.castShadow=true;
+      scene.fog=new THREE.Fog(0x120a26, 16, 34);                       // 밤 안개 깊이감
+      const amb=new THREE.AmbientLight(0x5b4aa8,0.5); scene.add(amb);   // 어둑한 보랏빛 환경광(네온 강조)
+      const dir=new THREE.DirectionalLight(0xeae0ff,0.6); dir.position.set(5,13,7); dir.castShadow=true;
       dir.shadow.mapSize.set(1024,1024); dir.shadow.camera.left=-7; dir.shadow.camera.right=7; dir.shadow.camera.top=7; dir.shadow.camera.bottom=-7; dir.shadow.camera.near=1; dir.shadow.camera.far=40; scene.add(dir);
-      const fill=new THREE.DirectionalLight(0x9b8cff,0.35); fill.position.set(-6,5,-4); scene.add(fill);
+      // 네온 컬러 포인트 라이트(클럽 무드)
+      const neon1=new THREE.PointLight(0xff2d95,1.15,32); neon1.position.set(-5.5,5,4); scene.add(neon1);
+      const neon2=new THREE.PointLight(0x12e6ff,1.15,32); neon2.position.set(5.5,5,-3); scene.add(neon2);
+      const neon3=new THREE.PointLight(0xb14bff,0.8,30); neon3.position.set(0,6.5,7); scene.add(neon3);
     }
     renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
     // 기존 보드 제거
@@ -295,14 +299,14 @@ function buildBoard3D(){
     if(centerObj){scene.remove(centerObj);centerObj=null;dieMesh=null;}
     Object.values(tokenMeshes).forEach(g=>scene.remove(g)); tokenMeshes={};
     // 베이스 판
-    const base=new THREE.Mesh(new THREE.BoxGeometry(7*SP+0.7,0.5,7*SP+0.7), new THREE.MeshStandardMaterial({color:0x241640,roughness:.9,metalness:.05}));
+    const base=new THREE.Mesh(new THREE.BoxGeometry(7*SP+0.7,0.5,7*SP+0.7), new THREE.MeshStandardMaterial({color:0x0c0820,roughness:.25,metalness:.65}));
     base.position.y=-0.25; base.receiveShadow=true; scene.add(base); tileMeshes.push(base);
     // 타일
     for(let i=0;i<24;i++){
       const m=tileMeta(i); const {x,z}=worldOf(i);
-      const top=new THREE.MeshStandardMaterial({map:makeTopTexture(m),roughness:.75});
-      const side=new THREE.MeshStandardMaterial({color:colNum(m.c),roughness:.5,metalness:.15});
-      const bot=new THREE.MeshStandardMaterial({color:0x2a1d44,roughness:.9});
+      const top=new THREE.MeshStandardMaterial({map:makeTopTexture(m),roughness:.6,metalness:.1});
+      const side=new THREE.MeshStandardMaterial({color:colNum(m.c),emissive:colNum(m.c),emissiveIntensity:.45,roughness:.3,metalness:.5});
+      const bot=new THREE.MeshStandardMaterial({color:0x1a1030,roughness:.9});
       const mats=[side,side,top,bot,side,side];
       const mesh=new THREE.Mesh(new THREE.BoxGeometry(TILE,TH,TILE),mats);
       mesh.position.set(x,TH/2,z); mesh.castShadow=true; mesh.receiveShadow=true;
@@ -311,7 +315,7 @@ function buildBoard3D(){
     }
     // 중앙 장식
     centerObj=new THREE.Group();
-    const plat=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.7,0.25,40), new THREE.MeshStandardMaterial({color:0x1c1234,roughness:.8,emissive:0x2a1d55,emissiveIntensity:.4}));
+    const plat=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.7,0.25,40), new THREE.MeshStandardMaterial({color:0x140a2e,roughness:.3,metalness:.5,emissive:0x7c3aed,emissiveIntensity:.7}));
     plat.position.y=0.12; plat.receiveShadow=true; centerObj.add(plat);
     dieMesh=buildDie(); centerObj.add(dieMesh);
     scene.add(centerObj);
@@ -330,9 +334,9 @@ function buildTokens(state){
   state.teams.forEach(t=>{
     if(tokenMeshes[t.id]) return;
     const g=new THREE.Group();
-    const body=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.3,0.5,24), new THREE.MeshStandardMaterial({color:colNum(t.color),roughness:.4,metalness:.2}));
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.3,0.5,24), new THREE.MeshStandardMaterial({color:colNum(t.color),emissive:colNum(t.color),emissiveIntensity:.3,roughness:.25,metalness:.4}));
     body.position.y=0.25; body.castShadow=true; g.add(body);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,20,16), new THREE.MeshStandardMaterial({color:colNum(t.color),roughness:.35,metalness:.2}));
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,20,16), new THREE.MeshStandardMaterial({color:colNum(t.color),emissive:colNum(t.color),emissiveIntensity:.35,roughness:.2,metalness:.45}));
     head.position.y=0.62; head.castShadow=true; g.add(head);
     const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:makeEmojiTexture(t.emoji),transparent:true})); spr.scale.set(0.66,0.66,0.66); spr.position.y=1.02; g.add(spr);
     g.userData={base:0.42}; scene.add(g); tokenMeshes[t.id]=g;
@@ -393,7 +397,7 @@ function applyControls(state,lock){
   // 폭탄주 누적 표시
   const bh=$('#bombHud'); const bc=state.bombCount||0;
   bh.classList.toggle('hidden', bc<=0);
-  if(bc>0) bh.textContent=`💣 폭탄주 ${bc}잔 충전 — ${(state.bombItems||[]).join('·')}`;
+  if(bc>0) bh.textContent=`💣 폭탄주 ${bc}잔 충전`;
   const btn=$('#rollBtn');if(btn){btn.classList.remove('skipmode');const mo=!!state.mission,over=state.phase==='finished';
     if(over){btn.disabled=true;btn.textContent='🏆 게임 종료';}
     else if(lock||mo){btn.disabled=true;btn.textContent=mo?'미션 진행 중…':'굴리는 중…';}

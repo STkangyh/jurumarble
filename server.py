@@ -213,8 +213,8 @@ def find_team(room: dict, tid: str):
 
 
 # ── 게임 로직 ─────────────────────────────────────────────────────────────
-def mk_mission(badge, emoji, text, sub, color, team_id):
-    return {"badge": badge, "emoji": emoji, "text": text, "sub": sub, "color": color, "teamId": team_id}
+def mk_mission(badge, emoji, text, sub, color, team_id, choose=None):
+    return {"badge": badge, "emoji": emoji, "text": text, "sub": sub, "color": color, "teamId": team_id, "choose": choose}
 
 
 def draw_chance(room: dict) -> dict:
@@ -308,18 +308,17 @@ def resolve_tile(room: dict, team: dict) -> dict:
         return mk_mission("🔤 초성 게임", "🔤", f"'{c['cho']}' 초성으로 단어 말하기! 5초 안에 못 대면 한 잔",
                           f"예: {c['ex']}", CHOSUNG_COLOR, tid)
     if t["type"] == "ingredient":
-        ing = random.choice(INGREDIENTS)
-        room["bomb"].append(ing)
+        room["bomb"].append("재료")
         n = len(room["bomb"])
         return mk_mission("🍶 폭탄주 재료", "🍶",
-                          f"폭탄주에 '{ing}' 추가! 지금 {n}잔 분량 쌓였어요 💥",
-                          "💣 폭탄주 칸을 밟는 팀이 전부 마셔요!", INGREDIENT_COLOR, tid)
+                          "폭탄주에 재료를 하나 넣어주세요! 🍶",
+                          f"지금 {n}잔 충전됨 · 💣 칸을 밟는 팀이 다 마셔요!", INGREDIENT_COLOR, tid)
     if t["type"] == "bomb":
         b = room["bomb"]
         if b:
-            n = len(b); items = " + ".join(b); room["bomb"] = []
+            n = len(b); room["bomb"] = []
             return mk_mission("💣 폭탄주 폭발!", "💣",
-                              f"{team['name']}이(가) {n}잔짜리 폭탄주({items}) 원샷! 🍻💥",
+                              f"{team['name']}이(가) {n}잔짜리 폭탄주를 원샷! 🍻💥",
                               "폭탄주가 초기화됐어요.", BOMB_COLOR, tid)
         return mk_mission("💣 폭탄주", "💣", "폭탄주가 아직 비어 있어요! 운 좋게 통과 😅", "", BOMB_COLOR, tid)
     cc = CAT[t["type"]]
