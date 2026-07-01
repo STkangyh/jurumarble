@@ -38,11 +38,11 @@ CAT = {
     "chance":  {"emoji": "🍀", "label": "찬스", "color": "#51cf66"},
 }
 TRAP_COLOR = "#e8590c"
-RESET_COLOR = "#7048e8"
+RESET_COLOR = "#4263eb"
 BOMB_COLOR = "#c92a2a"
 INGREDIENT_COLOR = "#9c36b5"
 QUIZ_COLOR = "#1098ad"
-CHOSUNG_COLOR = "#f06595"
+CHOSUNG_COLOR = "#f59f00"
 CHOSUNG = [  # 초성 게임 (cho: 초성, ex: 예시 답)
     {"cho": "ㅅㄱ", "ex": "사과·시계·수건"},
     {"cho": "ㄱㅈ", "ex": "과자·감자·가족"},
