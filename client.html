@@ -79,6 +79,25 @@
   .modal .ok{width:100%; border:none; border-radius:14px; padding:15px; font-size:17px; font-weight:900; color:#fff; background:linear-gradient(135deg,#845ef7,#5f3dc4); cursor:pointer; margin-top:18px;} .modal .wait{margin-top:16px; font-size:14px; color:var(--ink-soft); font-weight:700;}
   .modal.win .trophy{font-size:64px; margin:4px 0;} .modal.win .wtitle{font-size:26px; font-weight:900; color:var(--ink); margin:2px 0;} .modal.win .wsub{font-size:14px; color:var(--ink-soft); margin-top:6px;}
   .modal.win .wbtns{display:flex; gap:8px; margin-top:18px;} .modal.win .wbtns .btn{flex:1;}
+  /* 룰북 버튼 */
+  .rb-open{display:block; width:100%; max-width:460px; margin:0 auto; border:1.5px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08); color:#eae0ff; border-radius:14px; padding:12px; font-size:14px; font-weight:800; cursor:pointer;}
+  .rb-open:active{background:rgba(255,255,255,.16);}
+  /* 로비 게임방법 */
+  .lobby-rules{background:#f3f0fb; border-radius:14px; padding:12px 14px; margin-bottom:8px;}
+  .lobby-rules .lr-title{font-size:13px; font-weight:900; color:#5f3dc4; margin-bottom:6px;}
+  .lobby-rules p{margin:3px 0; font-size:12.5px; line-height:1.55; color:var(--ink-soft);} .lobby-rules b{color:var(--ink);}
+  /* 룰북 모달 */
+  .modal.rb{max-width:400px; padding:0; text-align:left; overflow:hidden; max-height:82vh; display:flex; flex-direction:column;}
+  .rb-head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--line); flex:0 0 auto;}
+  .rb-head .rb-title{font-size:19px; font-weight:900; color:var(--ink);}
+  .rb-x{border:none; background:#f1eef8; color:var(--ink-soft); width:34px; height:34px; border-radius:10px; font-size:16px; cursor:pointer;}
+  .rb-body{padding:10px 18px 20px; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .rb-sec{margin-top:12px;} .rb-sec h4{margin:0 0 4px; font-size:15px; font-weight:900; color:var(--ink);}
+  .rb-sec p{margin:0; font-size:13.5px; line-height:1.6; color:var(--ink-soft);} .rb-sec b{color:var(--ink);}
+  .rb-sec ul{margin:2px 0 0; padding-left:18px;} .rb-sec li{font-size:13.5px; line-height:1.65; color:var(--ink-soft);} .rb-sec li b{color:var(--ink);}
+  .rb-tip{background:#fff3bf; border-radius:12px; padding:10px 12px; font-size:13px; color:#92700a; font-weight:700; margin-top:16px;}
+  /* 칸 설명 */
+  .modal .ti-label{font-size:19px; font-weight:900; color:var(--ink); margin-top:2px;}
   #toast{position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 92px); transform:translateX(-50%) translateY(-12px); z-index:60; background:rgba(20,12,40,.94); color:#fff; padding:12px 18px; border-radius:14px; font-size:15px; font-weight:800; box-shadow:0 8px 26px rgba(0,0,0,.45); opacity:0; transition:.25s; max-width:88vw; text-align:center; border:1px solid rgba(255,255,255,.12);}
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
   #netbar{position:fixed; top:0; left:0; right:0; z-index:70; text-align:center; font-size:13px; font-weight:800; color:#fff; padding:calc(env(safe-area-inset-top) + 7px) 7px 7px; background:#e8590c; transform:translateY(-100%); transition:transform .2s;} #netbar.show{transform:translateY(0);}
@@ -102,6 +121,7 @@
     <div class="row"><input id="codeInput" class="field" type="text" maxlength="4" placeholder="ABCD" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase; letter-spacing:6px; font-weight:800; text-align:center;" />
       <button id="joinBtn" class="btn btn-ghost" style="flex:0 0 auto; padding-left:22px; padding-right:22px;">참가</button></div>
     <p class="rules" style="margin-top:10px;">관람객은 3D 보드를 실시간으로 보고 <b>이모티콘</b>을 날릴 수 있어요.</p></div>
+  <button class="rb-open" data-rb>📖 게임 룰북 · 방법 보기</button>
 </section>
 
 <!-- 로비 -->
@@ -116,7 +136,13 @@
   <div class="card spec-only"><p class="section-title">🚩 참가 팀</p><div class="tlist" id="teamListSpec"></div>
     <p class="waiting" id="specWait">관리자가 팀을 구성하고 게임을 시작하길 기다리는 중… 👀</p></div>
   <div class="card" style="background:transparent; box-shadow:none; padding-top:0;">
-    <p class="rules admin-only" style="text-align:center; margin-bottom:8px;">🎲 주사위 1·2·3 · 🏁 한 바퀴 완주 시 우승<br>🕳️함정·🌀소용돌이·🏝️무인도·🎯정확히 골인이 완주를 방해해요!</p>
+    <div class="lobby-rules">
+      <div class="lr-title">📋 게임 방법</div>
+      <p>🎲 주사위 <b>1개(눈은 1·2·3)</b>를 관리자가 각 팀 대신 굴려요.</p>
+      <p>🏁 보드를 <b>한 바퀴</b> 돌아 출발칸에 <b>딱 맞게 먼저 도착</b>하면 <b>완주 → 우승!</b> (넘으면 튕겨나요 🎯)</p>
+      <p>🕳️함정 · 🌀소용돌이 · 🏝️무인도가 완주를 방해해요.</p>
+    </div>
+    <button class="rb-open" data-rb style="margin-bottom:8px;">📖 자세한 룰북 보기</button>
     <p class="specline" id="specCount">👀 관람객 0명</p>
     <button id="startBtn" class="btn btn-gold btn-block admin-only">게임 시작 🎲</button>
     <button id="leaveLobbyBtn" class="btn btn-ghost btn-block" style="margin-top:8px; font-size:14px;">나가기</button></div>
@@ -126,6 +152,7 @@
 <section id="game" class="screen hidden">
   <div class="topbar"><h1 class="logo"><span class="em">🎲</span> <span id="gameCode">주루마블</span></h1>
     <div class="right"><span class="badge-role" id="roleBadge">관람</span>
+      <button class="icon-btn" data-rb title="룰북">📖</button>
       <button class="icon-btn admin-only" id="restartBtn" title="처음부터">↺</button>
       <button class="icon-btn" id="leaveBtn" title="나가기">⏏</button></div></div>
   <div class="hud"><div class="r1"><span class="tk" id="cTok">🦊</span><b id="cName">-</b><span class="rem" id="cRemain"></span></div>
@@ -134,7 +161,7 @@
   <div class="board-wrap">
     <canvas id="board3d"></canvas>
     <div id="boardFallback">3D 보드를 불러오지 못했어요.<br>인터넷 연결을 확인 후 새로고침 해주세요.</div>
-    <div class="draghint">↻ 드래그해서 3D로 둘러보기</div>
+    <div class="draghint">↻ 드래그로 회전 · 칸을 <b>탭</b>하면 설명</div>
     <div id="emojiLayer"></div>
   </div>
   <div class="bottom"><div class="turnstrip" id="turnstrip"></div>
@@ -151,14 +178,45 @@
   <div class="trophy">🏆</div><div class="wtitle" id="winTitle">우승!</div><div class="wsub" id="winSub"></div>
   <div class="wbtns admin-only"><button class="btn btn-ghost" id="toLobbyBtn">로비로</button><button class="btn btn-gold" id="againBtn">다시하기 🎲</button></div>
   <p class="wait spec-only" id="winWait">관리자가 다음 판을 준비합니다…</p></div></div>
+
+<!-- 룰북 -->
+<div class="overlay" id="rbOverlay"><div class="modal rb">
+  <div class="rb-head"><span class="rb-title">📖 주루마블 룰북</span><button class="rb-x" id="rbClose" title="닫기">✕</button></div>
+  <div class="rb-body">
+    <div class="rb-sec"><h4>🎯 목표</h4><p>내 팀 말이 보드를 <b>한 바퀴</b> 돌아 출발칸(🏁)에 <b>딱 맞게 먼저 도착</b>하면 완주 — 그 팀이 <b>우승!</b> (주사위가 남은 칸보다 크면 <b>튕겨나요</b> 🎯)</p></div>
+    <div class="rb-sec"><h4>🎮 진행 방식</h4><p><b>관리자 1명</b>이 모든 팀의 주사위를 대신 굴리고 미션 확인을 진행해요. 나머지는 <b>관람객</b> — 3D 보드를 실시간으로 보고 <b>이모티콘</b>을 날릴 수 있어요.</p></div>
+    <div class="rb-sec"><h4>🎲 주사위</h4><p>주사위는 <b>딱 1개</b>, 눈은 <b>1·2·3</b>만! 나온 수만큼 이동해요.</p></div>
+    <div class="rb-sec"><h4>🚧 완주를 방해하는 장치</h4>
+      <ul><li>🎯 <b>정확히 골인</b> — 출발칸에 <b>딱 맞게</b> 도착해야 우승! 넘으면 넘친 만큼 튕겨나 그 칸 미션도 수행</li>
+      <li>🕳️ <b>함정</b> — 뒤로 2~3칸 밀리고, 밀려난 칸의 미션도 수행!</li>
+      <li>🌀 <b>소용돌이</b> — 출발점으로 원위치</li>
+      <li>🏝️ <b>무인도</b> — 한 잔 마시고 다음 차례 쉬기</li></ul></div>
+    <div class="rb-sec"><h4>🍶 폭탄주 시스템</h4><p>🍶<b>재료</b> 칸을 밟을 때마다 공용 폭탄주가 한 잔씩 쌓이고, 💣<b>폭탄주</b> 칸을 밟은 팀이 그동안 쌓인 걸 <b>전부 원샷!</b></p></div>
+    <div class="rb-sec"><h4>🃏 칸 종류</h4>
+      <ul><li>🔥벌칙 · 💬토크 · 🎲대결 · 🎭장기 — 미션 수행</li>
+      <li>🍀찬스 — 찬스 카드 뽑기 · 🔤초성 — 초성 게임</li>
+      <li>🎡룰렛존 — 찬스 카드 · 🛋️휴게소 — 안전(미션 없음)</li></ul></div>
+    <div class="rb-sec rb-tip">💡 <b>보드의 아무 칸이나 탭</b>하면 그 칸 설명을 볼 수 있어요!</div>
+  </div>
+</div></div>
+
+<!-- 칸 설명 -->
+<div class="overlay" id="tiOverlay"><div class="modal">
+  <span class="badge" id="tiBadge">칸</span>
+  <div class="big-em" id="tiEm">🎯</div>
+  <div class="ti-label" id="tiLabel">칸</div>
+  <p class="mtext" id="tiText"></p>
+  <button class="ok" id="tiClose">닫기 ✓</button>
+</div></div>
+
 <div id="toast"></div><div id="netbar">⚠️ 서버와 재연결 중…</div>
 
 <script>
 /* ===== 보드 메타(서버 TILES 인덱스와 일치) ===== */
 const CAT={talk:{e:'💬',l:'토크',c:'#845ef7'},perform:{e:'🎭',l:'장기',c:'#f06595'},game:{e:'🎲',l:'대결',c:'#4dabf7'},penalty:{e:'🔥',l:'벌칙',c:'#ff922b'},chance:{e:'🍀',l:'찬스',c:'#51cf66'}};
 const CORNERS={start:{e:'🏁',l:'출발',c:'#ffd43b'},island:{e:'🏝️',l:'무인도',c:'#20c997'},rest:{e:'🛋️',l:'휴게소',c:'#ffd43b'},roulette:{e:'🎡',l:'룰렛존',c:'#f783ac'}};
-const SPECIAL={trap:{e:'🕳️',l:'함정',c:'#e8590c'},reset:{e:'🌀',l:'소용돌이',c:'#4263eb'},bomb:{e:'💣',l:'폭탄주',c:'#c92a2a'},ingredient:{e:'🍶',l:'재료',c:'#9c36b5'},quiz:{e:'🧠',l:'퀴즈',c:'#1098ad'},chosung:{e:'🔤',l:'초성',c:'#f59f00'}};
-const TILE_KIND=['start','penalty','ingredient','trap','chance','game','island','ingredient','penalty','trap','quiz','chance','rest','chosung','game','reset','penalty','chance','roulette','game','perform','bomb','trap','chance'];
+const SPECIAL={trap:{e:'🕳️',l:'함정',c:'#e8590c'},reset:{e:'🌀',l:'소용돌이',c:'#4263eb'},bomb:{e:'💣',l:'폭탄주',c:'#c92a2a'},ingredient:{e:'🍶',l:'재료',c:'#9c36b5'},chosung:{e:'🔤',l:'초성',c:'#f59f00'}};
+const TILE_KIND=['start','penalty','ingredient','trap','chance','game','island','ingredient','penalty','trap','game','chance','rest','chosung','game','reset','penalty','chance','roulette','game','perform','bomb','trap','chance'];
 const GPOS=[[7,7],[7,6],[7,5],[7,4],[7,3],[7,2],[7,1],[6,1],[5,1],[4,1],[3,1],[2,1],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]];
 const DIE3=['⚀','⚁','⚂'];
 const REACTIONS=['😂','❤️','🔥','👏','🎉','😮','👍','🍻','💯','😭'];
@@ -191,9 +249,10 @@ let busyBtn=null,busyT=null;
 function setBusy(btn,txt){if(!btn)return;if(!btn.dataset.orig)btn.dataset.orig=btn.textContent;btn.textContent=txt;btn.disabled=true;busyBtn=btn;clearTimeout(busyT);busyT=setTimeout(clearBusy,9000);}
 function clearBusy(){clearTimeout(busyT);if(busyBtn){busyBtn.disabled=false;if(busyBtn.dataset.orig){busyBtn.textContent=busyBtn.dataset.orig;delete busyBtn.dataset.orig;}busyBtn=null;}}
 
-let lastRollSeq=-1,lastEventId=0,animating=false,pending=null,boardBuilt=false,renderedPos={};
+let lastRollSeq=-1,lastEventId=0,animating=false,pending=null,boardBuilt=false,renderedPos={},BOARD=null;
 function onMessage(m){
   if(m.type==='joined'){clearBusy();myRoom=m.room;myId=m.playerId;myRole=m.role;persist();applyRoleVisibility();}
+  else if(m.type==='board'){BOARD=m.tiles;}
   else if(m.type==='state'){onState(m.state);}
   else if(m.type==='emoji'){spawnFloat(m.e);}
   else if(m.type==='error'){clearBusy();toast('⚠️ '+m.message);}
@@ -337,10 +396,33 @@ function buildBoard3D(){
     boardOk=true; $('#boardFallback').style.display='none';
     if(!raf) loop();
     if(!window.__ro){ window.__ro=new ResizeObserver(()=>resize3d()); window.__ro.observe(wrap); }
+    if(!window.__tap){ window.__tap=true; setupTileTap(); }
   }catch(e){ console.error('3D init fail',e); $('#boardFallback').style.display='flex'; boardOk=false; }
 }
 function loop(){ raf=requestAnimationFrame(loop); if(controls)controls.update(); if(renderer&&scene&&camera)renderer.render(scene,camera); }
 function resize3d(){ if(!renderer)return; const wrap=$('.board-wrap'); const w=wrap.clientWidth,h=wrap.clientHeight; if(w&&h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();} }
+/* ===== 칸 탭 → 설명 ===== */
+const _ray=new THREE.Raycaster(); let _down=null;
+function setupTileTap(){
+  const el=renderer.domElement;
+  el.addEventListener('pointerdown', e=>{ _down=[e.clientX,e.clientY]; }, {passive:true});
+  el.addEventListener('pointerup', e=>{
+    if(!_down) return; const dx=e.clientX-_down[0], dy=e.clientY-_down[1]; _down=null;
+    if(Math.hypot(dx,dy)>9) return;                      // 드래그(회전)는 무시, 탭만
+    if(!renderer||!camera) return;
+    const r=el.getBoundingClientRect();
+    _ray.setFromCamera({x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1}, camera);
+    const hit=_ray.intersectObjects(tileMeshes.filter(m=>m.userData&&m.userData.idx!==undefined));
+    if(hit.length) showTileInfo(hit[0].object.userData.idx);
+  }, {passive:true});
+}
+function showTileInfo(idx){
+  const info=BOARD&&BOARD[idx], meta=tileMeta(idx);
+  const e=info?info.emoji:meta.e, l=info?info.label:meta.l, c=info?info.color:meta.c, d=info?info.desc:'설명을 불러오는 중…';
+  $('#tiBadge').style.background=c; $('#tiBadge').textContent=e+' '+l;
+  $('#tiEm').textContent=e; $('#tiLabel').textContent=l; $('#tiText').textContent=d;
+  $('#tiOverlay').classList.add('show');
+}
 
 function buildTokens(state){
   if(!boardOk)return;
@@ -453,6 +535,12 @@ $('#addTeamBtn').onclick=()=>{act({type:'addTeam',name:$('#teamInput').value.tri
 $('#teamInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#addTeamBtn').click();});
 $('#startBtn').onclick=()=>act({type:'start'});
 $('#copyBtn').onclick=()=>copyText(S?S.code:'');$('#shareBtn').onclick=()=>shareInvite();$('#leaveLobbyBtn').onclick=()=>leave();
+/* 룰북 · 칸 설명 */
+document.querySelectorAll('[data-rb]').forEach(b=>b.onclick=()=>$('#rbOverlay').classList.add('show'));
+$('#rbClose').onclick=()=>$('#rbOverlay').classList.remove('show');
+$('#tiClose').onclick=()=>$('#tiOverlay').classList.remove('show');
+$('#rbOverlay').addEventListener('click',e=>{if(e.target.id==='rbOverlay')$('#rbOverlay').classList.remove('show');});
+$('#tiOverlay').addEventListener('click',e=>{if(e.target.id==='tiOverlay')$('#tiOverlay').classList.remove('show');});
 $('#rollBtn').onclick=()=>act({type:'roll'});$('#mOk').onclick=()=>act({type:'confirm'});
 $('#restartBtn').onclick=()=>{if(isAdmin()&&confirm('처음부터 다시 시작할까요?'))act({type:'restart'});};
 $('#leaveBtn').onclick=()=>{if(confirm('나갈까요?'))leave();};

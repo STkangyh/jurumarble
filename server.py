@@ -41,7 +41,6 @@ TRAP_COLOR = "#e8590c"
 RESET_COLOR = "#4263eb"
 BOMB_COLOR = "#c92a2a"
 INGREDIENT_COLOR = "#9c36b5"
-QUIZ_COLOR = "#1098ad"
 CHOSUNG_COLOR = "#f59f00"
 CHOSUNG = [  # 초성 게임 (cho: 초성, ex: 예시 답)
     {"cho": "ㅅㄱ", "ex": "사과·시계·수건"},
@@ -58,22 +57,6 @@ CHOSUNG = [  # 초성 게임 (cho: 초성, ex: 예시 답)
     {"cho": "ㅂㄹ", "ex": "바람·보리·불량"},
 ]
 INGREDIENTS = ["소주", "맥주", "양주", "콜라", "사이다", "매실주", "막걸리"]  # 폭탄주 재료(랜덤)
-QUIZ = [  # 상식 퀴즈 (q: 문제, a: 정답)
-    {"q": "세계에서 가장 넓은 대양은?", "a": "태평양"},
-    {"q": "무지개는 모두 몇 가지 색깔?", "a": "7가지"},
-    {"q": "태양계에서 가장 큰 행성은?", "a": "목성"},
-    {"q": "한글을 만든 조선의 왕은?", "a": "세종대왕"},
-    {"q": "빛의 삼원색(RGB)은?", "a": "빨강·초록·파랑"},
-    {"q": "펭귄이 사는 곳은 남극일까 북극일까?", "a": "남극"},
-    {"q": "거미의 다리는 모두 몇 개?", "a": "8개"},
-    {"q": "올림픽은 몇 년마다 열릴까?", "a": "4년"},
-    {"q": "에펠탑이 있는 나라는?", "a": "프랑스"},
-    {"q": "물의 화학식은?", "a": "H₂O"},
-    {"q": "대한민국에서 가장 높은 산은?", "a": "한라산"},
-    {"q": "세계에서 가장 긴 강은?", "a": "나일강"},
-    {"q": "우리 몸에서 피를 펌프질하는 기관은?", "a": "심장"},
-    {"q": "1년은 모두 몇 개월?", "a": "12개월"},
-]
 
 # 24칸. trap=뒤로 N칸, reset=출발 복귀.
 TILES = [
@@ -87,7 +70,7 @@ TILES = [
     {"type": "ingredient"},
     {"type": "penalty", "text": "의리 게임! 우리 팀끼리 소주 한 병을 나눠 마시기 🍶🤝"},
     {"type": "trap", "back": 3},
-    {"type": "quiz"},
+    {"type": "game",    "text": "베스킨라빈스 31! 한 명씩 1~3개 숫자를 이어 세고, '31'을 부른 팀이 한 잔 🔢"},
     {"type": "chance"},
     {"type": "corner", "key": "rest", "emoji": "🛋️", "label": "휴게소"},
     {"type": "chosung"},
@@ -111,7 +94,7 @@ CHANCE = [
 ]
 
 CORNER_TEXT = {
-    "island":   {"text": "무인도 표류 🏝️ 다음 차례는 쉬어요.", "sub": "이 팀은 다음 차례에 자동으로 한 번 쉽니다."},
+    "island":   {"text": "무인도 표류 🏝️ 한 잔 마시고 다음 차례 쉬기.", "sub": "이 팀은 다음 차례에 자동으로 한 번 쉽니다."},
     "rest":     {"text": "휴게소 😌 안주 챙기는 시간! 벌주·미션 없음.", "sub": "안전지대 — 편하게 쉬어가세요."},
     "roulette": {"text": "룰렛 당첨 🎡 찬스 카드 1장 뽑기!", "sub": ""},
 }
@@ -125,6 +108,41 @@ EMOJI_THROTTLE = 0.2         # 참가자별 최소 간격(초)
 ROOM_EMOJI_MIN = 0.04        # 방 전체 이모티콘 최소 간격(초) ≈ 25/s
 ROOM_TTL = 60 * 60
 TILE_COUNT = 24
+
+
+def _board_info():
+    """칸 탭 시 보여줄 각 칸 설명(emoji, label, desc, color) 24개."""
+    corner_meta = {
+        "start":    ("🏁", "출발", "시작이자 결승선! 여기에 딱 맞게 도착하면 한 바퀴 완주 → 우승 🏆 (넘으면 튕겨나가요)", "#ffd43b"),
+        "island":   ("🏝️", "무인도", "한 잔 마시고 다음 차례는 쉬어요.", "#20c997"),
+        "rest":     ("🛋️", "휴게소", "안전지대 — 미션 없이 편히 쉬어가요.", "#ffd43b"),
+        "roulette": ("🎡", "룰렛존", "찬스 카드 1장을 뽑아요.", "#f783ac"),
+    }
+    out = []
+    for t in TILES:
+        ty = t["type"]
+        if ty == "corner":
+            e, l, d, c = corner_meta[t["key"]]
+        elif ty == "trap":
+            e, l, d, c = "🕳️", "함정", f"뒤로 {t['back']}칸 밀리고, 밀려난 칸의 미션도 수행해요!", TRAP_COLOR
+        elif ty == "reset":
+            e, l, d, c = "🌀", "소용돌이", "출발점으로 원위치! 처음부터 다시…", RESET_COLOR
+        elif ty == "bomb":
+            e, l, d, c = "💣", "폭탄주", "그동안 쌓인 폭탄주를 밟은 팀이 전부 원샷! 🍻💥", BOMB_COLOR
+        elif ty == "ingredient":
+            e, l, d, c = "🍶", "재료", "공용 폭탄주에 재료를 한 잔 추가해요.", INGREDIENT_COLOR
+        elif ty == "chance":
+            e, l, d, c = "🍀", "찬스", "찬스 카드 1장을 뽑아요 (랜덤).", CAT["chance"]["color"]
+        elif ty == "chosung":
+            e, l, d, c = "🔤", "초성", "초성 게임! 랜덤 초성으로 단어 대기.", CHOSUNG_COLOR
+        else:  # talk / perform / game / penalty
+            cc = CAT[ty]
+            e, l, d, c = cc["emoji"], cc["label"], t["text"], cc["color"]
+        out.append({"emoji": e, "label": l, "desc": d, "color": c})
+    return out
+
+
+BOARD_INFO = _board_info()
 
 # ──────────────────────────────────────────────────────────────────────────
 # 상태 저장소
@@ -245,16 +263,16 @@ def _land_special(s: int, path: list):
 
 def compute_move(team: dict, die: int):
     """team['pos'] 를 갱신하고 (애니메이션 경로 path, effect, meta) 반환.
-    effect: None(일반) | 'win' | 'bounce' | 'trap' | 'reset'."""
+    effect: None(일반) | 'win' | 'trap' | 'reset' | 'bounce'."""
     pos = team["pos"]
     path = []
     target = pos + die
-    # 출발칸(0) 정확히 도착해야 골인 — 넘으면 튕겨나감
+    # 출발칸(0)에 딱 맞게 도착해야 완주(우승) — 넘으면 넘친 만큼 뒤로 튕겨나감
     if pos != 0 and target >= TILE_COUNT:
         s = pos
         while s != 0:
             s = (s + 1) % TILE_COUNT
-            path.append(s)              # ...→0 까지 전진
+            path.append(s)              # ...→0(결승선)까지 전진
         if target == TILE_COUNT:
             team["pos"] = 0
             return path, "win", 0
@@ -295,10 +313,6 @@ def resolve_tile(room: dict, team: dict) -> dict:
     if t["type"] == "chance":
         card = draw_chance(room)
         return mk_mission("🍀 찬스 카드", "🍀", card["text"], "", CAT["chance"]["color"], tid)
-    if t["type"] == "quiz":
-        q = random.choice(QUIZ)
-        return mk_mission("🧠 상식 퀴즈", "🧠", f"Q. {q['q']}",
-                          f"정답: {q['a']} · 관리자가 읽어주고 못 맞히면 한 잔!", QUIZ_COLOR, tid)
     if t["type"] == "chosung":
         c = random.choice(CHOSUNG)
         return mk_mission("🔤 초성 게임", "🔤", f"'{c['cho']}' 초성으로 단어 말하기! 5초 안에 못 대면 한 잔",
@@ -322,13 +336,9 @@ def resolve_tile(room: dict, team: dict) -> dict:
 
 
 def obstacle_notice(effect: str, meta: int, team: dict) -> dict:
-    tid = team["id"]; nm = team["name"]
-    if effect == "trap":
-        return mk_mission("🕳️ 함정", "🕳️", f"{nm} 함정에 걸려 {meta}칸 뒤로 밀려났어요! 😵", "한 바퀴가 멀어졌네요…", TRAP_COLOR, tid)
-    if effect == "reset":
-        return mk_mission("🌀 소용돌이", "🌀", f"{nm} 소용돌이에 휩쓸려 출발점으로! 😱", "처음부터 다시 시작…", RESET_COLOR, tid)
-    # bounce
-    return mk_mission("🎯 골인 실패", "🎯", f"정확한 수가 아니라 {meta}칸 튕겨나갔어요!", "골인은 출발칸에 딱 맞게 도착해야 해요.", "#f76707", tid)
+    # 소용돌이로 출발칸 복귀 안내(출발칸엔 별도 미션이 없음)
+    return mk_mission("🌀 소용돌이", "🌀", f"{team['name']} 소용돌이에 휩쓸려 출발점으로! 😱",
+                      "처음부터 다시 시작…", RESET_COLOR, team["id"])
 
 
 # ── 직렬화/전송 ───────────────────────────────────────────────────────────
@@ -378,6 +388,7 @@ async def handle_create(ws, msg):
     room["adminId"] = p["id"]
     conns[code][p["id"]] = ws
     await send(ws, {"type": "joined", "room": code, "playerId": p["id"], "role": "admin"})
+    await send(ws, {"type": "board", "tiles": BOARD_INFO})
     await broadcast(room)
     return code, p["id"]
 
@@ -394,6 +405,7 @@ async def handle_join(ws, msg):
     p = add_participant(room, msg.get("name", ""), "spectator")
     conns[code][p["id"]] = ws
     await send(ws, {"type": "joined", "room": code, "playerId": p["id"], "role": "spectator"})
+    await send(ws, {"type": "board", "tiles": BOARD_INFO})
     await broadcast(room)
     return code, p["id"]
 
@@ -409,6 +421,7 @@ async def handle_rejoin(ws, msg):
     p["connected"] = True
     conns.setdefault(code, {})[pid] = ws
     await send(ws, {"type": "joined", "room": code, "playerId": pid, "role": p["role"]})
+    await send(ws, {"type": "board", "tiles": BOARD_INFO})
     await broadcast(room)
     return code, pid
 
@@ -492,7 +505,24 @@ async def handle_roll(room, pid, msg):
         await broadcast(room)
         return
     if effect in ("trap", "reset", "bounce"):
-        room["mission"] = obstacle_notice(effect, meta, team)
+        if effect == "trap":
+            set_event(room, "obstacle", f"🕳️ {team['name']} 함정! {meta}칸 뒤로 😵")
+        elif effect == "reset":
+            set_event(room, "obstacle", f"🌀 {team['name']} 소용돌이! 출발로 😱")
+        else:                                       # bounce — 출발선을 넘어 튕겨나감
+            set_event(room, "obstacle", f"🎯 {team['name']} 출발선을 {meta}칸 넘어 튕겨나감! 😅")
+        if team["pos"] == 0:                       # 소용돌이로 출발칸 복귀 — 별도 미션 없음
+            room["mission"] = obstacle_notice(effect, meta, team)
+        else:                                       # 밀려난/튕겨난 최종 칸의 미션도 수행
+            mis = resolve_tile(room, team)
+            if effect == "trap":
+                tag = f"🕳️ 함정 {meta}칸 뒤로 밀려온 칸! 이 미션도 수행"
+            elif effect == "reset":
+                tag = "🌀 소용돌이로 밀려온 칸! 이 미션도 수행"
+            else:
+                tag = f"🎯 출발선 넘어 {meta}칸 튕겨나온 칸! 이 미션도 수행"
+            mis["sub"] = tag + (" · " + mis["sub"] if mis["sub"] else "")
+            room["mission"] = mis
     else:
         room["mission"] = resolve_tile(room, team)
     await broadcast(room)
